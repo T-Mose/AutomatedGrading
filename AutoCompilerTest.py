@@ -32,7 +32,7 @@ excel_path = os.path.join(os.getcwd(), 'students.xlsx')  # Replace with a generi
 base_url = "git@gits-15.sys.kth.se:inda-24/"
 
 # Read student names from the Excel file (assuming names are in column A)
-df = pd.read_excel(excel_path, usecols='A')
+df = pd.read_excel(excel_path, usecols='A', header=None)
 student_names = df[df.columns[0]].dropna()  # Drop any empty rows, process all names in column A
 
 # Generate GitHub URLs based on student names and task number
