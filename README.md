@@ -27,6 +27,58 @@ If you run only the compilation tests (without unit tests), the results will loo
 
 ![Excel Results with Compilation Only](images/results_compilation.png)
 
+## Interpreting the Output
+
+When running the scripts (`AutoCompilerUnitTest.py` or `AutoCompilerTest.py`), you will get detailed output about the results of compiling and running the student's code. Here’s how to interpret the different messages you might encounter:
+
+### 1. **Unit Test Passed**
+   - **Meaning**: The student's code compiled successfully, and all unit tests executed and passed without any errors.
+   - **Action**: This indicates the code works as expected, and the logic meets the requirements of the assignment.
+
+### 2. **Unit Test Failed**
+   - **Meaning**: The student's code compiled successfully, and the unit tests were executed, but one or more tests failed.
+   - **Details**: This means the student's code may have logical errors or incorrect behavior. The failure messages in the output provide more details, including what was expected and what was actually produced.
+   - **Example**:
+     ```text
+     Unit Test Failed:
+     JUnit version 4.13.2
+     ..E..
+     There were 2 failures:
+     1) testSettersAndGetters(UnitTests)
+        java.lang.AssertionError
+        at org.junit.Assert.fail(Assert.java:87)
+        at UnitTests.testSettersAndGetters(UnitTests.java:40)
+     ```
+
+   - **Action**: Review the failure messages to identify the exact issues (e.g., incorrect return values, incorrect logic, or missing features).
+
+### 3. **Unit Test Compilation Failed**
+   - **Meaning**: The student's code compiled successfully, but the unit test file (`UnitTests.java`) failed to compile.
+   - **Details**: This typically occurs when the student's code is missing required methods or has incorrect method signatures (e.g., missing or mismatched arguments). The test cannot be run because it references parts of the student's code that don't exist or are inaccessible.
+   - **Example**:
+     ```text
+     Unit Test Compilation Failed:
+     C:\path\to\UnitTests.java:47: error: cannot find symbol
+     mollyMajOstkrok.attack(arvidKarlSixtenSiberov);
+                      ^
+     symbol: method attack(Indamon)
+     location: variable mollyMajOstkrok of type Indamon
+     ```
+   - **Action**: Investigate the compilation failure details to determine what is missing or incorrect in the student's code (e.g., a missing method or a private method that should be public).
+
+### Summary:
+- **Unit Test Passed**: The code compiled and passed all tests.
+- **Unit Test Failed**: The code compiled, but the tests failed due to logical or functional errors.
+- **Unit Test Compilation Failed**: The student's code compiled, but the unit tests failed to compile due to missing methods, incorrect signatures, or access issues.
+
+## Importance of Good Unit Tests
+
+This script is only as effective as the quality of the unit tests provided. The `UnitTests.java` file must accurately test the core functionality required by the assignment. Careful attention should be paid to ensuring the tests cover all edge cases and typical use cases.
+
+I will aim to maintain up-to-date unit tests for each weekly assignment in the `UnitTests.java` file found in this repository's `UnitTests` folder. However, it is important to review and adapt the tests as needed for each specific assignment.
+
+If the unit tests are incomplete or poorly designed, they might not catch all errors or might provide misleading results. Therefore, it is essential to keep the tests relevant and aligned with the learning objectives for each assignment.
+
 ## Files
 - `AutoCompilerUnitTest.py`: Script for cloning, compiling, and running unit tests.
 - `AutoCompilerTest.py`: Script for cloning and compiling Java code (without running unit tests).

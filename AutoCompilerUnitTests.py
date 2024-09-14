@@ -156,7 +156,7 @@ def run_java_class(repo_path, src_path):
             unit_test_result = 'Unit Test Passed'
         else:
             print(f"Unit test failed:\n{test_stdout}\n{test_stderr}")
-            unit_test_result = f'Unit Test Failed: {test_stderr.strip()}'
+            unit_test_result = f'Unit Test Failed:\n{test_stdout.strip()}\n{test_stderr.strip()}'
     except Exception as e:
         print(f"Unit test failed: {str(e)}")
         unit_test_result = f'Unit Test Failed: {str(e)}'
