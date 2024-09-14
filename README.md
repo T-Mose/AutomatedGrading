@@ -29,7 +29,7 @@ If you run only the compilation tests (without unit tests), the results will loo
 
 ## Interpreting the Output
 
-When running the scripts (`AutoCompilerUnitTest.py` or `AutoCompilerTest.py`), you will get detailed output about the results of compiling and running the student's code. Here’s how to interpret the different messages you might encounter:
+When running the script (`AutoCompilerUnitTest.py)`), you will get detailed output about the results of compiling and running the student's code. Here’s how to interpret the different messages you might encounter:
 
 ### 1. **Unit Test Passed**
    - **Meaning**: The student's code compiled successfully, and all unit tests executed and passed without any errors.
@@ -99,9 +99,16 @@ Make sure you have the following installed:
 1. **Prepare the Excel File**: The `students.xlsx` file should have student IDs in the first column.
 2. **Set Up the Unit Test**: Place the `UnitTests.java` file in the same directory as the scripts.
 3. **Ensure the JAR Files Are in Place**: The `junit-4.13.2.jar` and `hamcrest-core-1.3.jar` must be in the same directory as the Python scripts.
-4. **Add Unit tests** Either from the folder or selfmade ones, into the UnitTests.java file. By default is this emtpy. If selfmade ones are made, paste these in into this files class.
+4. **Add Unit tests**: Either from the folder or selfmade ones, into the UnitTests.java file. By default is this emtpy. If selfmade ones are made, paste these in into this files class.
 5. **Run the Script**: 
-   - For unit testing: `python AutoCompilerUnitTest.py <task_number>`
-   - For compile-only: `python AutoCompilerTest.py <task_number>`
+   - For unit testing: `python AutoGrader.py <task_number>`
+   - For compile-only: `python AutoGrader.py <task_number>` N
 
    Replace `<task_number>` with the appropriate task (e.g., 2 for Task 2).
+   The second parameter is optional
+      `<Y>` or nothing (default) to run with unit tests
+      `<N>` to only compile the students reposetories
+   
+   **Examples**: 
+      python AutoCompilerUnitTest.py 2 
+      python AutoCompilerUnitTest.py 2 N
