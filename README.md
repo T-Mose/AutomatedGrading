@@ -75,7 +75,7 @@ When running the scripts (`AutoCompilerUnitTest.py` or `AutoCompilerTest.py`), y
 
 This script is only as effective as the quality of the unit tests provided. The `UnitTests.java` file must accurately test the core functionality required by the assignment. Careful attention should be paid to ensuring the tests cover all edge cases and typical use cases.
 
-I will aim to maintain up-to-date unit tests for each weekly assignment in the `UnitTests.java` file found in this repository's `UnitTests` folder. However, it is important to review and adapt the tests as needed for each specific assignment. As there will always be some specific conditions you will either be lenient on or harder. For example did i modify in Task-2 the tests to add a constructor argument for isFainted since every-single-one of my students made this "misstake" and i did not find the instructions to clearly dissallow this action.
+I will aim to maintain up-to-date unit tests for each weekly assignment in the UnitTests.java file, located in the UnitTests folder of this repository. However, it is important to review and adapt the tests as needed for each specific assignment, as there will always be certain conditions where you may choose to be more lenient or stricter. For example, in Task 2, I modified the tests to add a constructor argument for isFainted since all of my students made this 'mistake,' and I did not find the instructions clearly prohibiting this action.
 
 If the unit tests are incomplete or poorly designed, they might not catch all errors or might provide misleading results. Therefore, it is essential to keep the tests relevant and aligned with the learning objectives for each assignment.
 
