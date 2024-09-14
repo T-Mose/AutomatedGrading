@@ -1,7 +1,7 @@
 ﻿# Auto Compiler & Unit Tester
 
 ## Overview
-This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student Java repositories. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file.
+This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student Java repositories. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file. Optionally, it can automatically create GitHub issues based on the results of the compilation and testing.
 
 ## Directory Before and After Script Execution
 
@@ -27,17 +27,24 @@ If you run only the compilation tests (without unit tests), the results will loo
 
 ![Excel Results with Compilation Only](images/results_compilation.png)
 
+## New Features and Updates
+The script has been enhanced to support additional features:
+1. **Optional Unit Tests**: You can now choose whether or not to run unit tests.
+2. **Automatic GitHub Issue Creation**: If a GitHub token is provided, the script will automatically create GitHub issues based on the compilation and test results.
+3. **Main Class Detection**: The script automatically detects the main Java class in the student's code.
+4. **Timeout for Compilation**: A timeout mechanism is in place to prevent processes from running indefinitely.
+
 ## Interpreting the Output
 
-When running the script (`AutoCompilerUnitTest.py)`), you will get detailed output about the results of compiling and running the student's code. Here’s how to interpret the different messages you might encounter:
+When running the script (`AutoGrader.py`), you will get detailed output about the results of compiling and running the student's code. Here’s how to interpret the different messages you might encounter:
 
 ### 1. **Unit Test Passed**
    - **Meaning**: The student's code compiled successfully, and all unit tests executed and passed without any errors.
    - **Action**: This indicates the code works as expected, and the logic meets the requirements of the assignment.
 
 ### 2. **Unit Test Failed**
-   - **Meaning**: The student's code compiled successfully, and the unit tests were executed, but one or more tests failed.
-   - **Details**: This means the student's code may have logical errors or incorrect behavior. The failure messages in the output provide more details, including what was expected and what was actually produced.
+   - **Meaning**: The student's code compiled successfully, but one or more tests failed.
+   - **Details**: This means the student's code may have logical errors or incorrect behavior. Review the failure messages for more details.
    - **Example**:
      ```text
      Unit Test Failed:
@@ -50,11 +57,11 @@ When running the script (`AutoCompilerUnitTest.py)`), you will get detailed outp
         at UnitTests.testSettersAndGetters(UnitTests.java:40)
      ```
 
-   - **Action**: Review the failure messages to identify the exact issues (e.g., incorrect return values, incorrect logic, or missing features).
+   - **Action**: Identify issues such as incorrect return values or logic.
 
 ### 3. **Unit Test Compilation Failed**
    - **Meaning**: The student's code compiled successfully, but the unit test file (`UnitTests.java`) failed to compile.
-   - **Details**: This typically occurs when the student's code is missing required methods or has incorrect method signatures (e.g., missing or mismatched arguments). The test cannot be run because it references parts of the student's code that don't exist or are inaccessible.
+   - **Details**: This happens when the student's code is missing required methods or has incorrect method signatures.
    - **Example**:
      ```text
      Unit Test Compilation Failed:
@@ -64,24 +71,58 @@ When running the script (`AutoCompilerUnitTest.py)`), you will get detailed outp
      symbol: method attack(Indamon)
      location: variable mollyMajOstkrok of type Indamon
      ```
-   - **Action**: Investigate the compilation failure details to determine what is missing or incorrect in the student's code (e.g., a missing method or a private method that should be public).
+   - **Action**: Review missing methods or incorrect signatures in the student's code.
+
+### 4. **Main Class Not Found**
+   - **Meaning**: The script could not detect the `main` class in the student's code.
+   - **Action**: Ensure the `main` method exists and is properly formatted.
+
+### 5. **Compilation Failed**
+   - **Meaning**: The student's Java files failed to compile.
+   - **Action**: Review the error messages to identify syntax or structural issues in the code.
 
 ### Summary:
 - **Unit Test Passed**: The code compiled and passed all tests.
 - **Unit Test Failed**: The code compiled, but the tests failed due to logical or functional errors.
-- **Unit Test Compilation Failed**: The student's code compiled, but the unit tests failed to compile due to missing methods, incorrect signatures, or access issues.
+- **Unit Test Compilation Failed**: The student's code compiled, but the unit tests failed to compile.
+- **Main Class Not Found**: The script couldn’t find the `main` class.
+- **Compilation Failed**: The code did not compile successfully.
 
-## Importance of Good Unit Tests
+## GitHub Issue Creation
 
-This script is only as effective as the quality of the unit tests provided. The `UnitTests.java` file must accurately test the core functionality required by the assignment. Careful attention should be paid to ensuring the tests cover all edge cases and typical use cases.
+# Prerequisites
 
-I will aim to maintain up-to-date unit tests for each weekly assignment in the UnitTests.java file, located in the UnitTests folder of this repository. However, it is important to review and adapt the tests as needed for each specific assignment, as there will always be certain conditions where you may choose to be more lenient or stricter. For example, in Task 2, I modified the tests to add a constructor argument for isFainted since all of my students made this 'mistake,' and I did not find the instructions clearly prohibiting this action.
+### GitHub Personal Access Token (Optional for Issue Creation):
 
-If the unit tests are incomplete or poorly designed, they might not catch all errors or might provide misleading results. Therefore, it is essential to keep the tests relevant and aligned with the learning objectives for each assignment.
+If you wish to enable automatic issue creation, you need to generate a GitHub Personal Access Token (PAT).
+
+### Generate a Token:
+
+1. Go to [https://gits-15.sys.kth.se/settings/tokens](https://gits-15.sys.kth.se/settings/tokens).
+2. Generate a new token with the necessary permissions (e.g., `repo` scope).
+
+### Set Up the `GITHUB_TOKEN.env` File:
+
+1. Copy the example file:
+
+    ```bash
+    cp GITHUB_TOKEN.env.example GITHUB_TOKEN.env
+    ```
+
+2. Open `GITHUB_TOKEN.env` and paste your GitHub PAT into this file.
+
+### Security Note:
+Do not share this file or add it to version control. The `.gitignore` file already includes `GITHUB_TOKEN.env` to prevent this.
+
+
+If enabled, the script can automatically create GitHub issues based on the results:
+- **Pass**: A "PASS!" issue is created if all tests pass.
+- **Kompletering!**: An issue is created if the unit tests fail, indicating that the student needs to correct their code.
+
+Make sure to store your GitHub token in a `GITHUB_TOKEN.env` file for automatic issue creation.
 
 ## Files
-- `AutoCompilerUnitTest.py`: Script for cloning, compiling, and running unit tests.
-- `AutoCompilerTest.py`: Script for cloning and compiling Java code (without running unit tests).
+- `AutoGrader.py`: Script for cloning, compiling, running unit tests, and creating GitHub issues.
 - `students.xlsx`: Template for inputting student IDs (empty for privacy reasons).
 - `UnitTests.java`: Placeholder unit test file to be replaced for each assignment.
 
@@ -90,25 +131,31 @@ Make sure you have the following installed:
 - Python 3.x
 - GitPython: `pip install gitpython`
 - Pandas: `pip install pandas`
+- PyGithub: `pip install PyGithub`
 - JUnit (Download: [JUnit 4.13.2](https://search.maven.org/artifact/junit/junit/4.13.2/jar))
 - Hamcrest (Download: [Hamcrest 1.3](https://search.maven.org/artifact/org.hamcrest/hamcrest-core/1.3/jar))
 
 ### **Important**: Place the JAR files (`junit-4.13.2.jar` and `hamcrest-core-1.3.jar`) in the same directory as the Python scripts for the compilation and unit testing to work.
 
 ## How to Use
+
 1. **Prepare the Excel File**: The `students.xlsx` file should have student IDs in the first column.
 2. **Set Up the Unit Test**: Place the `UnitTests.java` file in the same directory as the scripts.
 3. **Ensure the JAR Files Are in Place**: The `junit-4.13.2.jar` and `hamcrest-core-1.3.jar` must be in the same directory as the Python scripts.
-4. **Add Unit tests**: Either from the folder or selfmade ones, into the UnitTests.java file. By default is this emtpy. If selfmade ones are made, paste these in into this files class.
-5. **Run the Script**: 
-   - For unit testing: `python AutoGrader.py <task_number>`
-   - For compile-only: `python AutoGrader.py <task_number> N` 
+4. **Run the Script**:
+   - For unit testing: `python AutoGrader.py <task_number> [Y/N] [Y/N]`
+     - First Y/N: Run unit tests? Default is Y.
+     - Second Y/N: Create GitHub issues? Default is N.
+   - For compile-only: `python AutoGrader.py <task_number> N`
 
-   Replace `<task_number>` with the appropriate task (e.g., 2 for Task 2).
-   The second parameter is optional
-      `<Y>` or nothing (default) to run with unit tests
-      `<N>` to only compile the students reposetories
-   
-   **Examples**: 
-      python AutoCompilerUnitTest.py 2 
-      python AutoCompilerUnitTest.py 2 N
+   **Examples**:
+   - `python AutoGrader.py 2`
+   - `python AutoGrader.py 2 Y Y`
+
+5. **View the Results**: The script generates an Excel file (`grading_results.xlsx`) with the compilation and unit test results.
+
+## Notes on Unit Tests
+This script relies on good unit tests. Ensure that `UnitTests.java` is up-to-date and aligns with the specific assignment requirements. Keep the tests relevant and clear, and adapt as needed based on the learning objectives for each week.
+
+## GitHub
+Created by Theodor Malmgren. [GitHub: T-Mose](https://github.com/T-Mose/AutomatedGrading)
