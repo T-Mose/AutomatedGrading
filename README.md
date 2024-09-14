@@ -29,7 +29,7 @@ If you run only the compilation tests (without unit tests), the results will loo
 
 ## Interpreting the Output
 
-When running the script (`AutoCompilerUnitTest.py)`), you will get detailed output about the results of compiling and running the student's code. Here’s how to interpret the different messages you might encounter:
+When running the script (`AutoGrader.py)`), you will get detailed output about the results of compiling and running the student's code. Here’s how to interpret the different messages you might encounter:
 
 ### 1. **Unit Test Passed**
    - **Meaning**: The student's code compiled successfully, and all unit tests executed and passed without any errors.
