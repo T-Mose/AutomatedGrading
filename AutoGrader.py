@@ -5,7 +5,7 @@ Date: September 13, 2024
 
 Description:
 This script automates the process of cloning and compiling Java student assignments. 
-It fetches student repositories and compiles the Java files without running unit tests.
+It fetches student repositories and compiles the Java files and optionally runs unit tests.
 
 GitHub Repository: https://github.com/T-Mose/AutomatedGrading
 """
