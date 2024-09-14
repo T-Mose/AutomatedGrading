@@ -41,9 +41,6 @@ base_url = "git@gits-15.sys.kth.se:inda-24/"
 df = pd.read_excel(excel_path, usecols='A', header=None)
 student_names = df[df.columns[0]].dropna()  # Drop any empty rows, process all names in column A
 
-# Print the list of student names to ensure the first one is present
-print("Student Names:", student_names)
-
 # Generate GitHub URLs based on student names and task number
 urls = [f"{base_url}{name.strip()}-task-{task_number}.git" for name in student_names]
 
