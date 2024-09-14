@@ -1,29 +1,39 @@
 """
-Auto Compiler & Unit Tester Script
+Auto Compiler Script
 Created by: Theodor Malmgren (GitHub: T-Mose)
 Date: September 13, 2024
 
 Description:
-This script automates the process of cloning, compiling, and running unit tests for Java student assignments.
-It fetches student repositories, compiles the Java files, and runs the specified unit tests (UnitTests.java).
+This script automates the process of cloning and compiling Java student assignments. 
+It fetches student repositories and compiles the Java files without running unit tests.
 
 GitHub Repository: https://github.com/T-Mose/AutomatedGrading
 """
-
 import os
 import subprocess
 import git
 import pandas as pd
 import threading
-import tempfile
 import sys
 
-# Check for input parameter for task number
+# Check for input parameters for task number and whether to run unit tests
 if len(sys.argv) < 2 or not (1 <= int(sys.argv[1]) <= 9):
-    print("Usage: python script_name.py <task_number> (task_number must be between 1 and 9)")
+    print("Usage: python script_name.py <task_number> [Y/N]")
     sys.exit(1)
 
 task_number = sys.argv[1]  # The task number, e.g., "2"
+
+# Determine whether to run unit tests
+run_tests = True  # Default is to run tests
+if len(sys.argv) >= 3:
+    run_tests_input = sys.argv[2].strip().upper()
+    if run_tests_input == 'Y':
+        run_tests = True
+    elif run_tests_input == 'N':
+        run_tests = False
+    else:
+        print("Invalid parameter for running unit tests. Use 'Y' or 'N'.")
+        sys.exit(1)
 
 # Path to the Excel file (assuming it's in the same directory as the script)
 excel_path = os.path.join(os.getcwd(), 'students.xlsx')  # Replace with a generic filename for all TAs
@@ -96,9 +106,8 @@ def run_java_class(repo_path, src_path):
         for file in files:
             if file.endswith('.java'):
                 # Get relative path to src_path
-                file_relative_path = os.path.relpath(os.path.join(root, file), src_path)
-                # Replace backslashes with forward slashes
-                file_relative_path = file_relative_path.replace('\\', '/')
+                file_full_path = os.path.join(root, file)
+                file_relative_path = os.path.relpath(file_full_path, src_path)
                 java_files.append(file_relative_path)
     
     if not java_files:
@@ -127,41 +136,50 @@ def run_java_class(repo_path, src_path):
         print("Main class not found.")
         return "Main class not found", None
 
-    # Compile the unit test using the student's compiled files
-    print(f"Compiling unit test UnitTests.java...")
-    compile_test_command = ['javac', '-cp', f'{repo_path};{junit_jar};{hamcrest_jar}', unit_test_path, '-d', repo_path]
-    print(f"Compile unit test command: {' '.join(compile_test_command)}")
+    # If unit tests should be run
+    if run_tests:
+        # Compile the unit test using the student's compiled files
+        print(f"Compiling unit test UnitTests.java...")
 
-    try:
-        returncode, stdout, stderr = run_with_timeout(
-            compile_test_command, cwd=src_path, timeout=TIMEOUT_SECONDS
-        )
-        if returncode != 0:
-            print(f"Unit test compilation failed")
-            print(stderr)
-            return 'Success', f'Unit Test Compilation Failed: {stderr.strip()}'  # We return "Success" to show that the student's program compiled, but the unit test failed
-    except Exception as e:
-        print(f"Unit test compilation error: {str(e)}")
-        return 'Success', f"Unit Test Compilation Error: {str(e)}"
+        # Use os.pathsep to construct classpath
+        classpath = os.pathsep.join([repo_path, junit_jar, hamcrest_jar])
+        compile_test_command = ['javac', '-cp', classpath, unit_test_path, '-d', repo_path]
+        print(f"Compile unit test command: {' '.join(compile_test_command)}")
 
-    # Run the unit test using JUnitCore
-    print(f"Running unit test UnitTests using JUnitCore...")
-    try:
-        run_test_command = ['java', '-cp', f'{repo_path};{junit_jar};{hamcrest_jar}', 'org.junit.runner.JUnitCore', 'UnitTests']
-        returncode, test_stdout, test_stderr = run_with_timeout(
-            run_test_command, cwd=src_path, timeout=TIMEOUT_SECONDS
-        )
-        if returncode == 0:
-            print(f"Unit test passed:\n{test_stdout}")
-            unit_test_result = 'Unit Test Passed'
-        else:
-            print(f"Unit test failed:\n{test_stdout}\n{test_stderr}")
-            unit_test_result = f'Unit Test Failed:\n{test_stdout.strip()}\n{test_stderr.strip()}'
-    except Exception as e:
-        print(f"Unit test failed: {str(e)}")
-        unit_test_result = f'Unit Test Failed: {str(e)}'
+        try:
+            returncode, stdout, stderr = run_with_timeout(
+                compile_test_command, cwd=src_path, timeout=TIMEOUT_SECONDS
+            )
+            if returncode != 0:
+                print(f"Unit test compilation failed")
+                print(stderr)
+                return 'Success', f'Unit Test Compilation Failed: {stderr.strip()}'  # We return "Success" to show that the student's program compiled, but the unit test failed
+        except Exception as e:
+            print(f"Unit test compilation error: {str(e)}")
+            return 'Success', f"Unit Test Compilation Error: {str(e)}"
 
-    return 'Success', unit_test_result
+        # Run the unit test using JUnitCore
+        print(f"Running unit test UnitTests using JUnitCore...")
+        try:
+            run_test_command = ['java', '-cp', classpath, 'org.junit.runner.JUnitCore', 'UnitTests']
+            print(f"Run unit test command: {' '.join(run_test_command)}")
+            returncode, test_stdout, test_stderr = run_with_timeout(
+                run_test_command, cwd=src_path, timeout=TIMEOUT_SECONDS
+            )
+            if returncode == 0:
+                print(f"Unit test passed:\n{test_stdout}")
+                unit_test_result = 'Unit Test Passed'
+            else:
+                print(f"Unit test failed:\n{test_stdout}\n{test_stderr}")
+                unit_test_result = f'Unit Test Failed:\n{test_stdout.strip()}\n{test_stderr.strip()}'
+        except Exception as e:
+            print(f"Unit test failed: {str(e)}")
+            unit_test_result = f'Unit Test Failed: {str(e)}'
+
+        return 'Success', unit_test_result
+    else:
+        # If not running unit tests, just indicate compilation success
+        return 'Success', 'Unit tests not run'
 
 # Iterate over each student and generate the GitHub URL dynamically
 results = []
@@ -185,7 +203,7 @@ for i, student_name in enumerate(student_names):
             results.append((web_url, 'No src directory found', 'No src directory found'))
             continue
 
-        # Compile, run the Java class, and run unit tests
+        # Compile, run the Java class, and run unit tests (if specified)
         program_result, unit_test_result = run_java_class(repo_path, src_path)
         results.append((web_url, program_result, unit_test_result))
 
@@ -195,6 +213,6 @@ for i, student_name in enumerate(student_names):
 
 # Save results back to a new Excel file, replacing the Git URL with the web URL
 result_df = pd.DataFrame(results, columns=['Web URL', 'Compilation/Execution Result', 'Unit Test Result'])
-result_df.to_excel('grading_results_with_tests.xlsx', index=False)
+result_df.to_excel('grading_results.xlsx', index=False)
 
-print("Grading complete. Results saved to 'grading_results_with_tests.xlsx'.")
+print("Grading complete. Results saved to 'grading_results.xlsx'.")
