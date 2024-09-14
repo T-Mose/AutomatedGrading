@@ -80,8 +80,7 @@ I will aim to maintain up-to-date unit tests for each weekly assignment in the U
 If the unit tests are incomplete or poorly designed, they might not catch all errors or might provide misleading results. Therefore, it is essential to keep the tests relevant and aligned with the learning objectives for each assignment.
 
 ## Files
-- `AutoCompilerUnitTest.py`: Script for cloning, compiling, and running unit tests.
-- `AutoCompilerTest.py`: Script for cloning and compiling Java code (without running unit tests).
+- `AutoGrader.py`: Script for cloning, compiling, and running unit tests.
 - `students.xlsx`: Template for inputting student IDs (empty for privacy reasons).
 - `UnitTests.java`: Placeholder unit test file to be replaced for each assignment.
 
