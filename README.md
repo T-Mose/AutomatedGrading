@@ -99,7 +99,7 @@ Make sure you have the following installed:
 1. **Prepare the Excel File**: The `students.xlsx` file should have student IDs in the first column.
 2. **Set Up the Unit Test**: Place the `UnitTests.java` file in the same directory as the scripts.
 3. **Ensure the JAR Files Are in Place**: The `junit-4.13.2.jar` and `hamcrest-core-1.3.jar` must be in the same directory as the Python scripts.
-4. **Add Unit tests, either from the folder or selfmade ones, into the UnitTests.java file. By default is this emtpy. If selfmade ones are made, paste these in into this files class.
+4. **Add Unit tests** Either from the folder or selfmade ones, into the UnitTests.java file. By default is this emtpy. If selfmade ones are made, paste these in into this files class.
 5. **Run the Script**: 
    - For unit testing: `python AutoCompilerUnitTest.py <task_number>`
    - For compile-only: `python AutoCompilerTest.py <task_number>`
