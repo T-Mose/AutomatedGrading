@@ -102,7 +102,7 @@ Make sure you have the following installed:
 4. **Add Unit tests**: Either from the folder or selfmade ones, into the UnitTests.java file. By default is this emtpy. If selfmade ones are made, paste these in into this files class.
 5. **Run the Script**: 
    - For unit testing: `python AutoGrader.py <task_number>`
-   - For compile-only: `python AutoGrader.py <task_number>` N
+   - For compile-only: `python AutoGrader.py <task_number> N` 
 
    Replace `<task_number>` with the appropriate task (e.g., 2 for Task 2).
    The second parameter is optional
