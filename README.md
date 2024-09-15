@@ -3,36 +3,7 @@
 ## Overview
 This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student Java repositories. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file. Optionally, it can automatically create GitHub issues based on the results of the compilation and testing.
 
-flowchart TD
-    Start[Start]
-    subgraph Initialization
-        Args[Check Command-Line Arguments]
-        LoadTokens[Load API Tokens]
-    end
-    ReadStudents[Read Student Names]
-    ForEach[For Each Student]
-    Clone[Clone Repository]
-    Compile[Compile Java Files]
-    RunTests{Run Unit Tests?}
-    RunUnitTests[Run Unit Tests]
-    CollectResults[Collect Results]
-    CreateIssue{Create GitHub Issue?}
-    UseGPT{Use GPT Analysis?}
-    GPTFeedback[Generate Feedback with GPT]
-    PostIssue[Create GitHub Issue]
-    End[End]
-
-    Start --> Initialization --> ReadStudents --> ForEach
-    ForEach --> Clone --> Compile --> RunTests
-    RunTests -- Yes --> RunUnitTests --> CollectResults
-    RunTests -- No --> CollectResults
-    CollectResults --> CreateIssue
-    CreateIssue -- Yes --> UseGPT
-    UseGPT -- Yes --> GPTFeedback --> PostIssue --> ForEach
-    UseGPT -- No --> PostIssue --> ForEach
-    CreateIssue -- No --> ForEach
-    ForEach -->|More Students| Clone
-    ForEach -->|All Students Processed| End
+![Overview Graph](images/overview_graph.png)
 
 
 ## Directory Before and After Script Execution
