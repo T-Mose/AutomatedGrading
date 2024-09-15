@@ -94,32 +94,32 @@ When running the script (`AutoGrader.py`), you will get detailed output about th
 
 ### GitHub Personal Access Token (Optional for Issue Creation):
 
-If you wish to enable automatic issue creation, you need to generate a GitHub Personal Access Token (PAT).
+If you wish to enable automatic issue creation, you need to generate a GitHub Personal Access Token (PAT). If you want to extend the capability of the compile and unit tests, also place a GPT api token in the `API_TOKENS.env` file.
 
 ### Generate a Token:
 
 1. Go to [https://gits-15.sys.kth.se/settings/tokens](https://gits-15.sys.kth.se/settings/tokens).
 2. Generate a new token with the necessary permissions (e.g., `repo` scope).
 
-### Set Up the `GITHUB_TOKEN.env` File:
+### Set Up the `API_TOKENS.env` File:
 
 1. Copy the example file:
 
     ```bash
-    cp GITHUB_TOKEN.env.example GITHUB_TOKEN.env
+    cp API_TOKENS.env.example API_TOKENS.env
     ```
 
-2. Open `GITHUB_TOKEN.env` and paste your GitHub PAT into this file.
+2. Open `API_TOKENS.env` and paste your GitHub PAT into this file.
 
 ### Security Note:
-Do not share this file or add it to version control. The `.gitignore` file already includes `GITHUB_TOKEN.env` to prevent this.
+Do not share this file or add it to version control. The `.gitignore` file already includes `API_TOKENS.env` to prevent this.
 
 
 If enabled, the script can automatically create GitHub issues based on the results:
 - **Pass**: A "PASS!" issue is created if all tests pass.
 - **Kompletering!**: An issue is created if the unit tests fail, indicating that the student needs to correct their code.
 
-Make sure to store your GitHub token in a `GITHUB_TOKEN.env` file for automatic issue creation.
+Make sure to store your GitHub token in a `API_TOKENS.env` file for automatic issue creation.
 
 ## Files
 - `AutoGrader.py`: Script for cloning, compiling, running unit tests, and creating GitHub issues.
@@ -132,6 +132,7 @@ Make sure you have the following installed:
 - GitPython: `pip install gitpython`
 - Pandas: `pip install pandas`
 - PyGithub: `pip install PyGithub`
+- openai: `pip install openai`
 - JUnit (Download: [JUnit 4.13.2](https://search.maven.org/artifact/junit/junit/4.13.2/jar))
 - Hamcrest (Download: [Hamcrest 1.3](https://search.maven.org/artifact/org.hamcrest/hamcrest-core/1.3/jar))
 
@@ -143,14 +144,16 @@ Make sure you have the following installed:
 2. **Set Up the Unit Test**: Place the `UnitTests.java` file in the same directory as the scripts.
 3. **Ensure the JAR Files Are in Place**: The `junit-4.13.2.jar` and `hamcrest-core-1.3.jar` must be in the same directory as the Python scripts.
 4. **Run the Script**:
-   - For unit testing: `python AutoGrader.py <task_number> [Y/N] [Y/N]`
+   - For unit testing: `python AutoGrader.py <task_number> [Y/N] [Y/N] [Y/N]`
      - First Y/N: Run unit tests? Default is Y.
      - Second Y/N: Create GitHub issues? Default is N.
+     - Third Y/N: Use GPT? Default is N.
    - For compile-only: `python AutoGrader.py <task_number> N`
 
    **Examples**:
    - `python AutoGrader.py 2`
    - `python AutoGrader.py 2 Y Y`
+   - `python AutoGrader.py 2 Y Y Y`
 
 5. **View the Results**: The script generates an Excel file (`grading_results.xlsx`) with the compilation and unit test results.
 
