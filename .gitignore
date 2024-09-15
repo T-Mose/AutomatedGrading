@@ -1,2 +1,2 @@
 # Ignore environment files containing sensitive information
-GITHUB_TOKEN.env
+API_TOKENS.env
