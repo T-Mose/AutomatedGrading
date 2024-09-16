@@ -6,6 +6,7 @@ Date: September 13, 2024
 Description:
 This script automates the process of cloning and compiling Java student assignments. 
 It fetches student repositories and compiles the Java files and optionally runs unit tests.
+This script also automatically creates issues on the students GitHub for the simpler results.
 
 GitHub Repository: https://github.com/T-Mose/AutomatedGrading
 """
@@ -15,10 +16,14 @@ import git
 import pandas as pd
 import threading
 import sys
+import time
+from github import Github
 
-# Check for input parameters for task number and whether to run unit tests
+# Check for input parameters
 if len(sys.argv) < 2 or not (1 <= int(sys.argv[1]) <= 9):
-    print("Usage: python script_name.py <task_number> [Y/N]")
+    print("Usage: python script_name.py <task_number> [Y/N] [Y/N]")
+    print("The first Y/N is for running unit tests (default: Y)")
+    print("The second Y/N is for auto-creating issues (default: N)")
     sys.exit(1)
 
 task_number = sys.argv[1]  # The task number, e.g., "2"
@@ -34,6 +39,42 @@ if len(sys.argv) >= 3:
     else:
         print("Invalid parameter for running unit tests. Use 'Y' or 'N'.")
         sys.exit(1)
+
+# Determine whether to auto-create issues
+auto_create_issues = False  # Default is not to create issues
+if len(sys.argv) >= 4:
+    create_issues_input = sys.argv[3].strip().upper()
+    if create_issues_input == 'Y':
+        auto_create_issues = True
+    elif create_issues_input == 'N':
+        auto_create_issues = False
+    else:
+        print("Invalid parameter for auto-creating issues. Use 'Y' or 'N'.")
+        sys.exit(1)
+
+# Load the GitHub token from GITHUB_TOKEN.env if it exists
+github_token = None
+env_file_path = os.path.join(os.getcwd(), 'GITHUB_TOKEN.env')
+if os.path.exists(env_file_path):
+    with open(env_file_path, 'r') as env_file:
+        for line in env_file:
+            if line.startswith("GITHUB_TOKEN="):
+                github_token = line.strip().split("=", 1)[1]  # Extract the token value after "GITHUB_TOKEN="
+                break
+    if github_token:
+        print(f"GitHub token loaded from GITHUB_TOKEN.env (length: {len(github_token)})")
+    else:
+        print("GitHub token is empty or not found!")
+else:
+    print("GITHUB_TOKEN.env file not found. Issues will not be auto-created.")
+    auto_create_issues = False
+
+# Initialize GitHub API client if token is available
+if github_token and auto_create_issues:
+    GITHUB_ENTERPRISE_URL = 'https://gits-15.sys.kth.se'
+    g = Github(base_url=GITHUB_ENTERPRISE_URL + '/api/v3', login_or_token=github_token)
+else:
+    g = None  # GitHub client is not initialized
 
 # Path to the Excel file (assuming it's in the same directory as the script)
 excel_path = os.path.join(os.getcwd(), 'students.xlsx')  # Replace with a generic filename for all TAs
@@ -181,14 +222,25 @@ def run_java_class(repo_path, src_path):
         # If not running unit tests, just indicate compilation success
         return 'Success', 'Unit tests not run'
 
-# Iterate over each student and generate the GitHub URL dynamically
+# Function to create an issue on GitHub
+def create_github_issue(student_username, task_number, title, body):
+    try:
+        repo_name = f"inda-24/{student_username}-task-{task_number}"
+        repo = g.get_repo(repo_name)
+        issue = repo.create_issue(title=title, body=body)
+        print(f"Issue '{title}' created for {student_username}.")
+    except Exception as e:
+        print(f"Error creating issue for {student_username}: {e}")
+
 results = []
+
 for i, student_name in enumerate(student_names):
     print(f"Processing repository for student: {student_name}")
     repo_name = f"repo_{i}"
     git_url = f"{base_url}{student_name.strip()}-task-{task_number}.git"
     web_url = f"https://gits-15.sys.kth.se/inda-24/{student_name.strip()}-task-{task_number}"  # The website URL format
     repo_path = os.path.join(base_folder, repo_name)
+    issue_status = "not created"  # Default status for issue
 
     try:
         print(f"Cloning {git_url}...")
@@ -200,19 +252,49 @@ for i, student_name in enumerate(student_names):
         print(f"Looking for src directory at {src_path}")
         if not os.path.exists(src_path):
             print(f"No src directory found in {repo_path}")
-            results.append((web_url, 'No src directory found', 'No src directory found'))
+            # Move the results append here after the issue is processed
+            results.append((web_url, 'No src directory found', 'No src directory found', issue_status))
             continue
 
         # Compile, run the Java class, and run unit tests (if specified)
         program_result, unit_test_result = run_java_class(repo_path, src_path)
-        results.append((web_url, program_result, unit_test_result))
+
+        # Decide whether to create an issue
+        if auto_create_issues and g is not None:
+            create_issue = False
+            issue_title = ''
+            issue_body = ''
+
+            if program_result == 'Success' and unit_test_result == 'Unit Test Passed':
+                issue_title = 'PASS!'
+                issue_body = ''
+                create_issue = True
+                issue_status = "PASS"  # Update the issue status
+            elif program_result == 'Success' and 'Unit Test Failed' in unit_test_result:
+                issue_title = 'Kompletering!'
+                issue_body = unit_test_result
+                create_issue = True
+                issue_status = "Kompletering"  # Update the issue status
+            else:
+                issue_status = "not created"
+
+            # Create issue if applicable
+            if create_issue:
+                create_github_issue(student_name.strip(), task_number, issue_title, issue_body)
+                print(f"Issue created for {student_name.strip()} with status {issue_status}")
+
+        # Append the final results after issue processing
+        results.append((web_url, program_result, unit_test_result, issue_status))
 
     except Exception as e:
         print(f"Error processing {git_url}: {str(e)}")
-        results.append((web_url, f'Error: {str(e)}', 'Unit test not run'))
+        results.append((web_url, f'Error: {str(e)}', 'Unit test not run', issue_status))
 
-# Save results back to a new Excel file, replacing the Git URL with the web URL
-result_df = pd.DataFrame(results, columns=['Web URL', 'Compilation/Execution Result', 'Unit Test Result'])
+# Save results back to a new Excel file, including the ISSUE status
+result_df = pd.DataFrame(results, columns=['Web URL', 'Compilation/Execution Result', 'Unit Test Result', 'ISSUE'])
 result_df.to_excel('grading_results.xlsx', index=False)
 
 print("Grading complete. Results saved to 'grading_results.xlsx'.")
+
+# Wait a bit before exiting to ensure all outputs are printed
+time.sleep(1)
