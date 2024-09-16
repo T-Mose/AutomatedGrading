@@ -1,10 +1,9 @@
 ﻿# Auto Compiler & Unit Tester
 
 ## Overview
-This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student Java repositories. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file. Optionally, it can automatically create GitHub issues based on the results of the compilation and testing.
+This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student Java repositories. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file. Optionally, it can automatically create GitHub issues based on the results of the compilation and testing. Additionally, the script can provide detailed feedback using GPT analysis.
 
 ![Overview Graph](images/overview_graph.png)
-
 
 ## Directory Before and After Script Execution
 
@@ -18,17 +17,25 @@ After running the script, the cloned repositories and compiled classes appear as
 
 ![After Directory](images/after_directory.png)
 
+## Cost to Run
+
+Running GPT analysis for all 16 students on one task costs approximately $0.01. This is demonstrated in the following images:
+
+- ![Tokens Used for 16 Students](images/tokens_16_students.png)
+- ![Cost for 16 Students](images/cost_16_students.png)
+
+## Example of GPT-Generated Issue
+
+If GPT analysis is enabled, the script will generate a feedback issue based on the student's code and test results. Below is an example of how a GPT-generated issue looks:
+
+- ![GPT-Generated Issue](images/results_issue.png)
+
 ## Output Files
 
 ### Output from Running Unit Tests:
-The final grading results will look like this in the generated Excel file when both compilation and unit tests are run:
+The final grading results will look like this in the generated Excel file when both compilation and unit tests are run, if all run arguments are Y:
 
 ![Excel Results with Unit Tests](images/results_excel.png)
-
-### Output from Running Only Compilation Tests:
-If you run only the compilation tests (without unit tests), the results will look like this:
-
-![Excel Results with Compilation Only](images/results_compilation.png)
 
 ## New Features and Updates
 The script has been enhanced to support additional features:
@@ -36,6 +43,7 @@ The script has been enhanced to support additional features:
 2. **Automatic GitHub Issue Creation**: If a GitHub token is provided, the script will automatically create GitHub issues based on the compilation and test results.
 3. **Main Class Detection**: The script automatically detects the main Java class in the student's code.
 4. **Timeout for Compilation**: A timeout mechanism is in place to prevent processes from running indefinitely.
+5. **GPT Analysis**: The script can generate feedback using GPT based on the student's code and the test results, offering constructive feedback.
 
 ## Interpreting the Output
 
@@ -59,7 +67,6 @@ When running the script (`AutoGrader.py`), you will get detailed output about th
         at org.junit.Assert.fail(Assert.java:87)
         at UnitTests.testSettersAndGetters(UnitTests.java:40)
      ```
-
    - **Action**: Identify issues such as incorrect return values or logic.
 
 ### 3. **Unit Test Compilation Failed**
@@ -93,13 +100,13 @@ When running the script (`AutoGrader.py`), you will get detailed output about th
 
 ## GitHub Issue Creation
 
-# Prerequisites
+### Prerequisites
 
-### GitHub Personal Access Token (Optional for Issue Creation):
+#### GitHub Personal Access Token (Optional for Issue Creation):
 
-If you wish to enable automatic issue creation, you need to generate a GitHub Personal Access Token (PAT). If you want to extend the capability of the compile and unit tests, also place a GPT api token in the `API_TOKENS.env` file.
+If you wish to enable automatic issue creation, you need to generate a GitHub Personal Access Token (PAT). If you want to extend the capability of the compile and unit tests, also place a GPT API token in the `API_TOKENS.env` file.
 
-### Generate a Token:
+#### Generate a Token:
 
 1. Go to [https://gits-15.sys.kth.se/settings/tokens](https://gits-15.sys.kth.se/settings/tokens).
 2. Generate a new token with the necessary permissions (e.g., `repo` scope).
@@ -112,11 +119,10 @@ If you wish to enable automatic issue creation, you need to generate a GitHub Pe
     cp API_TOKENS.env.example API_TOKENS.env
     ```
 
-2. Open `API_TOKENS.env` and paste your GitHub PAT into this file.
+2. Open `API_TOKENS.env` and paste your GitHub PAT and GPT API key (if available) into this file.
 
 ### Security Note:
 Do not share this file or add it to version control. The `.gitignore` file already includes `API_TOKENS.env` to prevent this.
-
 
 If enabled, the script can automatically create GitHub issues based on the results:
 - **Pass**: A "PASS!" issue is created if all tests pass.
@@ -135,7 +141,7 @@ Make sure you have the following installed:
 - GitPython: `pip install gitpython`
 - Pandas: `pip install pandas`
 - PyGithub: `pip install PyGithub`
-- openai: `pip install openai`
+- OpenAI: `pip install openai`
 - JUnit (Download: [JUnit 4.13.2](https://search.maven.org/artifact/junit/junit/4.13.2/jar))
 - Hamcrest (Download: [Hamcrest 1.3](https://search.maven.org/artifact/org.hamcrest/hamcrest-core/1.3/jar))
 
