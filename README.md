@@ -176,6 +176,7 @@ To enable GPT feedback when running the script, use the following command:
 
 ```bash
 python AutoGrader.py <task_number> [Y/N] [Y/N] [Y/N]
+```
 
 ## Files
 - `AutoGrader.py`: Script for cloning, compiling, running unit tests, and creating GitHub issues.
