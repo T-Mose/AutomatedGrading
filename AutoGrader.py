@@ -80,8 +80,10 @@ if os.path.exists(env_file_path):
                 key, value = line.split('=', 1)
                 if key == 'GITHUB_TOKEN':
                     github_token = value.strip()
+                    print("GitHub token extracted of length: " + len(github_token))
                 elif key == 'OPENAI_API_KEY':
                     openai_api_key = value.strip()
+                    print("OPENAI token extracted of length: " + len(openai_api_key))
     print("Tokens loaded from API_TOKENS.env")
 else:
     print("API_TOKENS.env file not found. Issues will not be auto-created, GPT analysis will be disabled.")
@@ -287,11 +289,11 @@ Resultatet av kompileringen är:
 Resultatet av enhetstesterna är:
 {unit_test_result}
 
-Var vänlig hjälp studenten att identifiera möjliga problem i sin kod och ge förslag på hur de kan åtgärdas.
+Var vänlig hjälp studenten att identifiera möjliga problem i sin kod och ge förslag på hur de kan åtgärdas utan att lösa problemen åt dem. 
+
+Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan gör för att lära sig hur man löser det.
 
 Ditt svar ska vara på svenska.
-
-Ditt svar bör vara strukturerat med en kort förklaring av problemen och tydliga steg för att fixa dem.
 """
     try:
         print("Calling GPT for analysis...")
@@ -320,6 +322,10 @@ for i, student_name in enumerate(student_names):
     web_url = f"https://gits-15.sys.kth.se/inda-24/{student_name}-task-{task_number}"  # The website URL format
     repo_path = os.path.join(base_folder, repo_name)
 
+    issue_title = ''
+    issue_body = ''
+    gpt_analysis = 'No GPT analysis'  # Default value
+
     try:
         print(f"Cloning {git_url}...")
         git.Repo.clone_from(git_url, repo_path)
@@ -330,7 +336,7 @@ for i, student_name in enumerate(student_names):
         print(f"Looking for src directory at {src_path}")
         if not os.path.exists(src_path):
             print(f"No src directory found in {repo_path}")
-            results.append((web_url, 'No src directory found', 'No src directory found'))
+            results.append((web_url, 'No src directory found', 'No src directory found', '', 'No GPT analysis'))
             continue
 
         # Compile, run the Java class, and run unit tests (if specified)
@@ -340,8 +346,6 @@ for i, student_name in enumerate(student_names):
         # Decide whether to create an issue
         if auto_create_issues and g is not None:
             create_issue = False
-            issue_title = ''
-            issue_body = ''
 
             if program_result == 'Success' and unit_test_result == 'Unit Test Passed':
                 issue_title = 'PASS!'
@@ -355,24 +359,26 @@ for i, student_name in enumerate(student_names):
                 # If GPT analysis is enabled, generate analysis and create issue
                 if use_gpt:
                     code_contents = collect_student_code(src_path)
-                    analysis = analyze_with_gpt(code_contents, program_result, unit_test_result)
+                    gpt_analysis = analyze_with_gpt(code_contents, program_result, unit_test_result)
                     issue_title = 'Feedback på din inlämning'
-                    issue_body = analysis
+                    issue_body = gpt_analysis
                     create_issue = True
                 else:
-                    # Do not create an issue; note for manual review
                     create_issue = False
 
             # Create issue if applicable
             if create_issue:
                 create_github_issue(student_name, task_number, issue_title, issue_body)
 
+        # Append results including issue and GPT analysis
+        results.append((web_url, program_result, unit_test_result, issue_body, gpt_analysis))
+
     except Exception as e:
         print(f"Error processing {git_url}: {str(e)}")
-        results.append((web_url, f'Error: {str(e)}', 'Unit test not run'))
+        results.append((web_url, f'Error: {str(e)}', 'Unit test not run', '', 'No GPT analysis'))
 
-# Save results back to a new Excel file, replacing the Git URL with the web URL
-result_df = pd.DataFrame(results, columns=['Web URL', 'Compilation/Execution Result', 'Unit Test Result'])
+# Save results back to a new Excel file with both issue and GPT columns
+result_df = pd.DataFrame(results, columns=['Web URL', 'Compilation/Execution Result', 'Unit Test Result', 'GitHub Issue', 'GPT Analysis'])
 result_df.to_excel('grading_results.xlsx', index=False)
 
 print("Grading complete. Results saved to 'grading_results.xlsx'.")
