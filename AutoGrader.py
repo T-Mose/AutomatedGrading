@@ -90,6 +90,7 @@ else:
     auto_create_issues = False  # Ensure issues are not created without a token
     use_gpt = False  # Ensure GPT is not used without a token
 
+
 # Initialize GitHub API client if token is available
 if github_token and auto_create_issues:
     GITHUB_ENTERPRISE_URL = 'https://gits-15.sys.kth.se'
@@ -349,6 +350,7 @@ def analyze_with_gpt(code_contents, program_result, unit_test_result, analysis_t
 
 # Iterate over each student and generate the GitHub URL dynamically
 results = []
+
 for i, student_name in enumerate(student_names):
     print(f"Processing repository for student: {student_name}")
     repo_name = f"repo_{i}"
