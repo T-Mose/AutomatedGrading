@@ -1,4 +1,4 @@
-﻿# Auto Compiler & Unit Tester
+﻿# Automatic Grader
 
 ## Overview
 This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student Java repositories. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file. Optionally, it can automatically create GitHub issues based on the results of the compilation and testing. Additionally, the script can provide detailed feedback using GPT analysis.
