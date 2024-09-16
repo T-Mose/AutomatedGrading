@@ -6,10 +6,12 @@ Date: September 13, 2024
 Description:
 This script automates the process of cloning and compiling Java student assignments. 
 It fetches student repositories and compiles the Java files and optionally runs unit tests.
-This script also automatically creates issues on the students GitHub for the simpler results.
+This script also automatically creates issues on the students' GitHub repositories for simpler results.
+It can also generate detailed feedback using GPT analysis.
 
 GitHub Repository: https://github.com/T-Mose/AutomatedGrading
 """
+
 import os
 import subprocess
 import git
@@ -18,12 +20,14 @@ import threading
 import sys
 import time
 from github import Github
+from openai import OpenAI
 
 # Check for input parameters
 if len(sys.argv) < 2 or not (1 <= int(sys.argv[1]) <= 9):
-    print("Usage: python script_name.py <task_number> [Y/N] [Y/N]")
+    print("Usage: python script_name.py <task_number> [Y/N] [Y/N] [Y/N]")
     print("The first Y/N is for running unit tests (default: Y)")
     print("The second Y/N is for auto-creating issues (default: N)")
+    print("The third Y/N is for using GPT analysis (default: N)")
     sys.exit(1)
 
 task_number = sys.argv[1]  # The task number, e.g., "2"
@@ -52,22 +56,40 @@ if len(sys.argv) >= 4:
         print("Invalid parameter for auto-creating issues. Use 'Y' or 'N'.")
         sys.exit(1)
 
-# Load the GitHub token from GITHUB_TOKEN.env if it exists
+# Determine whether to use GPT analysis
+use_gpt = False  # Default is not to use GPT
+if len(sys.argv) >= 5:
+    use_gpt_input = sys.argv[4].strip().upper()
+    if use_gpt_input == 'Y':
+        use_gpt = True
+    elif use_gpt_input == 'N':
+        use_gpt = False
+    else:
+        print("Invalid parameter for GPT analysis. Use 'Y' or 'N'.")
+        sys.exit(1)
+
+# Load the tokens from API_TOKENS.env if it exists
 github_token = None
-env_file_path = os.path.join(os.getcwd(), 'GITHUB_TOKEN.env')
+openai_api_key = None
+env_file_path = os.path.join(os.getcwd(), 'API_TOKENS.env')
 if os.path.exists(env_file_path):
     with open(env_file_path, 'r') as env_file:
         for line in env_file:
-            if line.startswith("GITHUB_TOKEN="):
-                github_token = line.strip().split("=", 1)[1]  # Extract the token value after "GITHUB_TOKEN="
-                break
-    if github_token:
-        print(f"GitHub token loaded from GITHUB_TOKEN.env (length: {len(github_token)})")
-    else:
-        print("GitHub token is empty or not found!")
+            line = line.strip()
+            if '=' in line:
+                key, value = line.split('=', 1)
+                if key == 'GITHUB_TOKEN':
+                    github_token = value.strip()
+                    print("GitHub token extracted of length: " + str(len(github_token)))
+                elif key == 'OPENAI_API_KEY':
+                    openai_api_key = value.strip()
+                    print("OPENAI token extracted of length: " + str(len(openai_api_key)))
+    print("Tokens loaded from API_TOKENS.env")
 else:
-    print("GITHUB_TOKEN.env file not found. Issues will not be auto-created.")
-    auto_create_issues = False
+    print("API_TOKENS.env file not found. Issues will not be auto-created, GPT analysis will be disabled.")
+    auto_create_issues = False  # Ensure issues are not created without a token
+    use_gpt = False  # Ensure GPT is not used without a token
+
 
 # Initialize GitHub API client if token is available
 if github_token and auto_create_issues:
@@ -75,6 +97,15 @@ if github_token and auto_create_issues:
     g = Github(base_url=GITHUB_ENTERPRISE_URL + '/api/v3', login_or_token=github_token)
 else:
     g = None  # GitHub client is not initialized
+
+# Initialize OpenAI API client if API key is available
+if openai_api_key and use_gpt:
+    OpenAI.api_key = openai_api_key
+    client = OpenAI(api_key=openai_api_key)
+else:
+    if use_gpt:
+        print("OpenAI API key not found or invalid. GPT analysis will be disabled.")
+        use_gpt = False
 
 # Path to the Excel file (assuming it's in the same directory as the script)
 excel_path = os.path.join(os.getcwd(), 'students.xlsx')  # Replace with a generic filename for all TAs
@@ -150,7 +181,7 @@ def run_java_class(repo_path, src_path):
                 file_full_path = os.path.join(root, file)
                 file_relative_path = os.path.relpath(file_full_path, src_path)
                 java_files.append(file_relative_path)
-    
+
     if not java_files:
         print("No Java files found to compile.")
         return "No Java files found", None
@@ -232,6 +263,92 @@ def create_github_issue(student_username, task_number, title, body):
     except Exception as e:
         print(f"Error creating issue for {student_username}: {e}")
 
+# Function to collect student's code into a single string
+def collect_student_code(src_path):
+    code_contents = ""
+    for root, dirs, files in os.walk(src_path):
+        for file in files:
+            if file.endswith('.java'):
+                java_file_path = os.path.join(root, file)
+                with open(java_file_path, 'r', encoding='utf-8') as f:
+                    code_contents += f"// File: {file}\n"
+                    code_contents += f.read()
+                    code_contents += "\n\n"
+    return code_contents
+
+# Function to call GPT for analysis with different types of prompts
+def analyze_with_gpt(code_contents, program_result, unit_test_result, analysis_type):
+    if analysis_type == 'pass':
+        prompt = f"""
+        Du är en Java-expert som hjälper en student att förbättra sin kod.
+
+        Studentens kod är som följer:
+
+        {code_contents}
+
+        Programmet fungerar och alla enhetstester har klarats.
+
+        Ge konstruktiv feedback om hur studenten kan förbättra sin kod, till exempel förbättring av kodstruktur, prestanda eller läsbarhet.
+
+        Ge svaret kort, max 100 ord.
+        """
+    elif analysis_type == 'test_failure':
+        prompt = f"""
+        Du är en Java-expert som hjälper en student att debugga sin kod.
+
+        Studentens kod är som följer:
+
+        {code_contents}
+
+        Resultatet av kompileringen är:
+        {program_result}
+
+        Resultatet av enhetstesterna är:
+        {unit_test_result}
+
+        Var vänlig hjälp studenten att identifiera problem i sin kod som ledde till att testerna misslyckades, och ge förslag på hur de kan åtgärdas utan att lösa problemen åt dem. 
+        Ge även ledtrådar till var i koden studenten bör undersöka.
+
+        Ge svaret kort, max 100 ord och fokusera på att hjälpa studenten att förstå hur man fixar testfelet. Ge bara feedbackpå studentens kod och anta testerna som perfekta.
+        """
+    elif analysis_type == 'compile_failure':
+        prompt = f"""
+        Du är en Java-expert som hjälper en student att debugga sin kod.
+
+        Studentens kod är som följer:
+
+        {code_contents}
+
+        Resultatet av kompileringen är:
+        {program_result}
+
+        Resultatet av enhetstesterna är:
+        {unit_test_result}
+
+        Hjälp studenten att förstå varför koden inte fungerar.
+
+        Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan göra för att lära sig hur man löser det.
+        """
+    # Call GPT for analysis
+    try:
+        print("Calling GPT for analysis...")
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # or gpt-3.5-turbo depending on your access
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500,
+            temperature=0.7,
+        )
+        analysis = response.choices[0].message.content
+        print(response.choices[0].message)
+        print(analysis)
+        print("GPT analysis received.")
+        return analysis
+    except Exception as e:
+        print(f"Error calling OpenAI API: {e}")
+        return "Kunde inte generera analys på grund av ett fel med OpenAI API."
+
+
+# Iterate over each student and generate the GitHub URL dynamically
 results = []
 
 for i, student_name in enumerate(student_names):
@@ -241,6 +358,7 @@ for i, student_name in enumerate(student_names):
     web_url = f"https://gits-15.sys.kth.se/inda-24/{student_name.strip()}-task-{task_number}"  # The website URL format
     repo_path = os.path.join(base_folder, repo_name)
     issue_status = "not created"  # Default status for issue
+    gpt_analysis = 'No GPT analysis'  # Default for GPT
 
     try:
         print(f"Cloning {git_url}...")
@@ -252,49 +370,59 @@ for i, student_name in enumerate(student_names):
         print(f"Looking for src directory at {src_path}")
         if not os.path.exists(src_path):
             print(f"No src directory found in {repo_path}")
-            # Move the results append here after the issue is processed
             results.append((web_url, 'No src directory found', 'No src directory found', issue_status))
             continue
 
         # Compile, run the Java class, and run unit tests (if specified)
         program_result, unit_test_result = run_java_class(repo_path, src_path)
 
-        # Decide whether to create an issue
+        # Call GPT for analysis if enabled
+        if use_gpt:
+            code_contents = collect_student_code(src_path)
+            analysis_type = (
+                'pass' if program_result == 'Success' and unit_test_result == 'Unit Test Passed'
+                else 'test_failure' if program_result == 'Success' and 'Unit Test Failed' in unit_test_result
+                else 'compile_failure'
+            )
+            gpt_analysis = analyze_with_gpt(code_contents, program_result, unit_test_result, analysis_type)
+
+        # Create the issue title and body based on the result
+        issue_title = ''
+        if use_gpt:
+            # If GPT is enabled, use only GPT analysis as the issue body
+            issue_body = f"GPT Analysis: {gpt_analysis}"
+        else:   
+            # If GPT is not enabled, include the program result and unit test result
+            issue_body = f"Compilation result: {program_result}\nUnit test result: {unit_test_result}"
+
+
+        # Create an issue for all outcomes (pass, test fail, compilation fail)
+        if program_result == 'Success' and unit_test_result == 'Unit Test Passed':
+            issue_title = 'PASS!'
+            issue_status = "PASS"
+        elif program_result == 'Success' and 'Unit Test Failed' in unit_test_result:
+            issue_title = 'Kompletering!'
+            issue_status = "Kompletering"
+        else:
+            issue_title = 'Compilation Failure'
+            issue_status = "Compilation Failure"
+
+        # Auto-create GitHub issues for all cases
         if auto_create_issues and g is not None:
-            create_issue = False
-            issue_title = ''
-            issue_body = ''
-
-            if program_result == 'Success' and unit_test_result == 'Unit Test Passed':
-                issue_title = 'PASS!'
-                issue_body = ''
-                create_issue = True
-                issue_status = "PASS"  # Update the issue status
-            elif program_result == 'Success' and 'Unit Test Failed' in unit_test_result:
-                issue_title = 'Kompletering!'
-                issue_body = unit_test_result
-                create_issue = True
-                issue_status = "Kompletering"  # Update the issue status
-            else:
-                issue_status = "not created"
-
-            # Create issue if applicable
-            if create_issue:
-                create_github_issue(student_name.strip(), task_number, issue_title, issue_body)
-                print(f"Issue created for {student_name.strip()} with status {issue_status}")
+            create_github_issue(student_name.strip(), task_number, issue_title, issue_body)
+            print(f"Issue created for {student_name.strip()} with status {issue_status}")
 
         # Append the final results after issue processing
-        results.append((web_url, program_result, unit_test_result, issue_status))
+        results.append((web_url, program_result, unit_test_result, issue_status, gpt_analysis))
 
     except Exception as e:
         print(f"Error processing {git_url}: {str(e)}")
-        results.append((web_url, f'Error: {str(e)}', 'Unit test not run', issue_status))
+        results.append((web_url, f'Error: {str(e)}', 'Unit test not run', issue_status, gpt_analysis))
 
-# Save results back to a new Excel file, including the ISSUE status
-result_df = pd.DataFrame(results, columns=['Web URL', 'Compilation/Execution Result', 'Unit Test Result', 'ISSUE'])
+# Save results back to a new Excel file with both issue and GPT columns
+result_df = pd.DataFrame(results, columns=['Web URL', 'Compilation/Execution Result', 'Unit Test Result', 'Issue Status', 'GPT Analysis'])
 result_df.to_excel('grading_results.xlsx', index=False)
 
 print("Grading complete. Results saved to 'grading_results.xlsx'.")
-
 # Wait a bit before exiting to ensure all outputs are printed
 time.sleep(1)

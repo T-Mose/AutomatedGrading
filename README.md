@@ -1,7 +1,9 @@
-﻿# Auto Compiler & Unit Tester
+﻿# Automatic Grader
 
 ## Overview
-This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student Java repositories. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file. Optionally, it can automatically create GitHub issues based on the results of the compilation and testing.
+This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student Java repositories. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file. Optionally, it can automatically create GitHub issues based on the results of the compilation and testing. Additionally, the script can provide detailed feedback using GPT analysis.
+
+![Overview Graph](images/overview_graph.png)
 
 ## Directory Before and After Script Execution
 
@@ -18,14 +20,9 @@ After running the script, the cloned repositories and compiled classes appear as
 ## Output Files
 
 ### Output from Running Unit Tests:
-The final grading results will look like this in the generated Excel file when both compilation and unit tests are run:
+The final grading results will look like this in the generated Excel file when both compilation and unit tests are run, if all run arguments are Y:
 
 ![Excel Results with Unit Tests](images/results_excel.png)
-
-### Output from Running Only Compilation Tests:
-If you run only the compilation tests (without unit tests), the results will look like this:
-
-![Excel Results with Compilation Only](images/results_compilation.png)
 
 ## New Features and Updates
 The script has been enhanced to support additional features:
@@ -33,6 +30,7 @@ The script has been enhanced to support additional features:
 2. **Automatic GitHub Issue Creation**: If a GitHub token is provided, the script will automatically create GitHub issues based on the compilation and test results.
 3. **Main Class Detection**: The script automatically detects the main Java class in the student's code.
 4. **Timeout for Compilation**: A timeout mechanism is in place to prevent processes from running indefinitely.
+5. **GPT Analysis**: The script can generate feedback using GPT based on the student's code and the test results, offering constructive feedback.
 
 ## Interpreting the Output
 
@@ -56,7 +54,6 @@ When running the script (`AutoGrader.py`), you will get detailed output about th
         at org.junit.Assert.fail(Assert.java:87)
         at UnitTests.testSettersAndGetters(UnitTests.java:40)
      ```
-
    - **Action**: Identify issues such as incorrect return values or logic.
 
 ### 3. **Unit Test Compilation Failed**
@@ -90,36 +87,96 @@ When running the script (`AutoGrader.py`), you will get detailed output about th
 
 ## GitHub Issue Creation
 
-# Prerequisites
+### Prerequisites
 
-### GitHub Personal Access Token (Optional for Issue Creation):
+#### GitHub Personal Access Token (Optional for Issue Creation):
 
-If you wish to enable automatic issue creation, you need to generate a GitHub Personal Access Token (PAT).
+If you wish to enable automatic issue creation, you need to generate a GitHub Personal Access Token (PAT). If you want to extend the capability of the compile and unit tests, also place a GPT API token in the `API_TOKENS.env` file.
 
-### Generate a Token:
+#### Generate a Token:
 
 1. Go to [https://gits-15.sys.kth.se/settings/tokens](https://gits-15.sys.kth.se/settings/tokens).
 2. Generate a new token with the necessary permissions (e.g., `repo` scope).
 
-### Set Up the `GITHUB_TOKEN.env` File:
+### Set Up the `API_TOKENS.env` File:
 
 1. Copy the example file:
 
     ```bash
-    cp GITHUB_TOKEN.env.example GITHUB_TOKEN.env
+    cp API_TOKENS.env.example API_TOKENS.env
     ```
 
-2. Open `GITHUB_TOKEN.env` and paste your GitHub PAT into this file.
+2. Open `API_TOKENS.env` and paste your GitHub PAT and GPT API key (if available) into this file.
 
 ### Security Note:
-Do not share this file or add it to version control. The `.gitignore` file already includes `GITHUB_TOKEN.env` to prevent this.
-
+Do not share this file or add it to version control. The `.gitignore` file already includes `API_TOKENS.env` to prevent this.
 
 If enabled, the script can automatically create GitHub issues based on the results:
 - **Pass**: A "PASS!" issue is created if all tests pass.
 - **Kompletering!**: An issue is created if the unit tests fail, indicating that the student needs to correct their code.
 
-Make sure to store your GitHub token in a `GITHUB_TOKEN.env` file for automatic issue creation.
+Make sure to store your GitHub token in a `API_TOKENS.env` file for automatic issue creation.
+
+## GPT Feedback and Token Setup
+
+### Prerequisites
+
+#### OpenAI API Key (Required for GPT Feedback):
+If you wish to enable GPT-based feedback for student code, you need to obtain an OpenAI API key. This will allow the script to generate constructive feedback automatically based on the compilation and unit test results.
+
+#### Generate an OpenAI API Key:
+1. Go to the [OpenAI API page](https://platform.openai.com/account/api-keys).
+2. Create a new API key.
+3. Copy the API key for use in the next step.
+
+#### Set Up the `API_TOKENS.env` File:
+To enable GPT feedback and GitHub issue creation, you need to store both the GitHub Personal Access Token (PAT) and the OpenAI API key in the `API_TOKENS.env` file.
+
+1. Copy the example file:
+
+    ```bash
+    cp API_TOKENS.env.example API_TOKENS.env
+    ```
+
+2. Open the `API_TOKENS.env` file and paste both your GitHub PAT and the OpenAI API key as follows:
+    ```bash
+    GITHUB_TOKEN=your_github_token_here
+    OPENAI_API_KEY=your_openai_api_key_here
+    ```
+
+### Security Note:
+Do not share this file or add it to version control. The `.gitignore` file already includes `API_TOKENS.env` to prevent this.
+
+### GPT Feedback Process
+
+Once the OpenAI API key is configured, the script can automatically generate feedback for student assignments. Based on the success or failure of compilation and unit tests, GPT will analyze the student’s code and provide constructive suggestions.
+
+#### Feedback Types:
+1. **Pass**: When all tests pass, GPT will give feedback on how the student can further improve their code, such as suggestions for better code structure, readability, or optimization.
+2. **Test Failure**: If unit tests fail, GPT will help diagnose potential issues, offering hints and recommendations without solving the problem for the student.
+3. **Compilation Failure**: In the case of a compilation error, GPT will provide suggestions to help the student debug their code and identify the error source.
+
+#### Example of GPT-Generated Feedback:
+The feedback generated by GPT is displayed in the form of a GitHub issue (if enabled) or saved to an Excel file for review.
+
+Here’s an example of what a GPT-generated issue looks like:
+
+- ![GPT-Generated Issue](images/results_issue.png)
+
+### Cost of Running GPT Feedback
+
+Running GPT feedback for all 16 students on one task costs approximately $0.01, making it a cost-effective way to provide personalized feedback at scale.
+
+- ![Tokens Used for 16 Students](images/tokens_16_students.png)
+- ![Cost for 16 Students](images/cost_16_students.png)
+
+### Enabling GPT in the Script
+
+To enable GPT feedback when running the script, use the following command:
+
+```bash
+python AutoGrader.py <task_number> [Y/N] [Y/N] [Y/N]
+```
 
 ## Files
 - `AutoGrader.py`: Script for cloning, compiling, running unit tests, and creating GitHub issues.
@@ -132,6 +189,7 @@ Make sure you have the following installed:
 - GitPython: `pip install gitpython`
 - Pandas: `pip install pandas`
 - PyGithub: `pip install PyGithub`
+- OpenAI: `pip install openai`
 - JUnit (Download: [JUnit 4.13.2](https://search.maven.org/artifact/junit/junit/4.13.2/jar))
 - Hamcrest (Download: [Hamcrest 1.3](https://search.maven.org/artifact/org.hamcrest/hamcrest-core/1.3/jar))
 
@@ -143,14 +201,16 @@ Make sure you have the following installed:
 2. **Set Up the Unit Test**: Place the `UnitTests.java` file in the same directory as the scripts.
 3. **Ensure the JAR Files Are in Place**: The `junit-4.13.2.jar` and `hamcrest-core-1.3.jar` must be in the same directory as the Python scripts.
 4. **Run the Script**:
-   - For unit testing: `python AutoGrader.py <task_number> [Y/N] [Y/N]`
+   - For unit testing: `python AutoGrader.py <task_number> [Y/N] [Y/N] [Y/N]`
      - First Y/N: Run unit tests? Default is Y.
      - Second Y/N: Create GitHub issues? Default is N.
+     - Third Y/N: Use GPT? Default is N.
    - For compile-only: `python AutoGrader.py <task_number> N`
 
    **Examples**:
    - `python AutoGrader.py 2`
    - `python AutoGrader.py 2 Y Y`
+   - `python AutoGrader.py 2 Y Y Y`
 
 5. **View the Results**: The script generates an Excel file (`grading_results.xlsx`) with the compilation and unit test results.
 
