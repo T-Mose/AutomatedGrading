@@ -1,17 +1,3 @@
-"""
-Auto Compiler Script
-Created by: Theodor Malmgren (GitHub: T-Mose)
-Date: September 13, 2024
-
-Description:
-This script automates the process of cloning and compiling Java student assignments. 
-It fetches student repositories and compiles the Java files and optionally runs unit tests.
-This script also automatically creates issues on the students' GitHub repositories for simpler results.
-It can also generate detailed feedback using GPT analysis.
-
-GitHub Repository: https://github.com/T-Mose/AutomatedGrading
-"""
-
 import os
 import subprocess
 import git
@@ -20,7 +6,7 @@ import threading
 import sys
 import time
 from github import Github
-from openai import OpenAI
+from openai import OpenAI  # Commented out since OpenAI module isn't imported in this context
 
 # Check for input parameters
 if len(sys.argv) < 2 or not (1 <= int(sys.argv[1]) <= 9):
@@ -90,7 +76,6 @@ else:
     auto_create_issues = False  # Ensure issues are not created without a token
     use_gpt = False  # Ensure GPT is not used without a token
 
-
 # Initialize GitHub API client if token is available
 if github_token and auto_create_issues:
     GITHUB_ENTERPRISE_URL = 'https://gits-15.sys.kth.se'
@@ -98,20 +83,17 @@ if github_token and auto_create_issues:
 else:
     g = None  # GitHub client is not initialized
 
-# Initialize OpenAI API client if API key is available
+#Initialize OpenAI API client if API key is available
 if openai_api_key and use_gpt:
     OpenAI.api_key = openai_api_key
     client = OpenAI(api_key=openai_api_key)
 else:
-    if use_gpt:
-        print("OpenAI API key not found or invalid. GPT analysis will be disabled.")
-        use_gpt = False
+     if use_gpt:
+         print("OpenAI API key not found or invalid. GPT analysis will be disabled.")
+         use_gpt = False
 
 # Path to the Excel file (assuming it's in the same directory as the script)
 excel_path = os.path.join(os.getcwd(), 'students.xlsx')  # Replace with a generic filename for all TAs
-# Path to the unit test file
-unit_test_path = os.path.join(os.getcwd(), 'UnitTests.java')  # Now named UnitTests.java
-
 # Paths to the JUnit and Hamcrest JAR files (assuming they're in the current directory)
 junit_jar = os.path.join(os.getcwd(), 'junit-4.13.2.jar')
 hamcrest_jar = os.path.join(os.getcwd(), 'hamcrest-core-1.3.jar')
@@ -129,9 +111,11 @@ urls = [f"{base_url}{name.strip()}-task-{task_number}.git" for name in student_n
 # Folder to clone repositories
 base_folder = os.path.join(os.getcwd(), 'student_repos')
 
-# Create a folder to store the cloned repos
-if not os.path.exists(base_folder):
-    os.mkdir(base_folder)
+# Create a folder to store the cloned repos, remove it first if it exists
+if os.path.exists(base_folder):
+    import shutil
+    shutil.rmtree(base_folder)  # Remove the existing directory and all its contents
+os.mkdir(base_folder)  # Create a new folder
 
 # Timeout value for subprocesses (in seconds)
 TIMEOUT_SECONDS = 60  # Adjust as needed
@@ -155,21 +139,8 @@ def run_with_timeout(command, cwd, timeout):
     finally:
         timer.cancel()
 
-# Function to detect the main class file by searching for 'public static void main(String[] args)'
-def detect_main_class(src_path):
-    for root, dirs, files in os.walk(src_path):
-        for file in files:
-            if file.endswith(".java"):
-                java_file_path = os.path.join(root, file)
-                with open(java_file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    if 'public static void main(String[] args)' in content:
-                        print(f"Main class detected: {file}")
-                        return os.path.splitext(file)[0]  # Return the class name without .java
-    return None
-
 # Function to compile and run the Java class and unit tests
-def run_java_class(repo_path, src_path):
+def run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_tests_dir):
     print(f"Compiling Java files in {src_path}...")
 
     # Collect all Java file names relative to src_path
@@ -202,51 +173,53 @@ def run_java_class(repo_path, src_path):
         print(f"Compilation error: {str(e)}")
         return f"Compilation Error: {str(e)}", None
 
-    # Automatically detect the main class file
-    main_class_name = detect_main_class(src_path)
-    if main_class_name is None:
-        print("Main class not found.")
-        return "Main class not found", None
-
     # If unit tests should be run
     if run_tests:
-        # Compile the unit test using the student's compiled files
-        print(f"Compiling unit test UnitTests.java...")
+        # Compile the unit tests using the student's compiled files
+        print(f"Compiling unit tests...")
 
         # Use os.pathsep to construct classpath
         classpath = os.pathsep.join([repo_path, junit_jar, hamcrest_jar])
-        compile_test_command = ['javac', '-cp', classpath, unit_test_path, '-d', repo_path]
+
+        # Collect unit test file names relative to their directory
+        unit_test_relative_files = []
+        for unit_test_file in unit_test_files:
+            unit_test_relative_path = os.path.relpath(unit_test_file, unit_tests_dir)
+            unit_test_relative_files.append(unit_test_relative_path)
+
+        # Compile the unit tests
+        compile_test_command = ['javac', '-cp', classpath] + unit_test_relative_files + ['-d', repo_path]
         print(f"Compile unit test command: {' '.join(compile_test_command)}")
 
         try:
             returncode, stdout, stderr = run_with_timeout(
-                compile_test_command, cwd=src_path, timeout=TIMEOUT_SECONDS
+                compile_test_command, cwd=unit_tests_dir, timeout=TIMEOUT_SECONDS
             )
             if returncode != 0:
                 print(f"Unit test compilation failed")
                 print(stderr)
-                return 'Success', f'Unit Test Compilation Failed: {stderr.strip()}'  # We return "Success" to show that the student's program compiled, but the unit test failed
+                return 'Success', f'Unit Test Compilation Failed: {stderr.strip()}'
         except Exception as e:
             print(f"Unit test compilation error: {str(e)}")
             return 'Success', f"Unit Test Compilation Error: {str(e)}"
 
-        # Run the unit test using JUnitCore
-        print(f"Running unit test UnitTests using JUnitCore...")
+        # Run the unit tests using JUnitCore
+        print(f"Running unit tests using JUnitCore...")
         try:
-            run_test_command = ['java', '-cp', classpath, 'org.junit.runner.JUnitCore', 'UnitTests']
+            run_test_command = ['java', '-cp', classpath, 'org.junit.runner.JUnitCore'] + test_class_names
             print(f"Run unit test command: {' '.join(run_test_command)}")
             returncode, test_stdout, test_stderr = run_with_timeout(
-                run_test_command, cwd=src_path, timeout=TIMEOUT_SECONDS
+                run_test_command, cwd=repo_path, timeout=TIMEOUT_SECONDS
             )
             if returncode == 0:
-                print(f"Unit test passed:\n{test_stdout}")
-                unit_test_result = 'Unit Test Passed'
+                print(f"Unit tests passed:\n{test_stdout}")
+                unit_test_result = 'Unit Tests Passed'
             else:
-                print(f"Unit test failed:\n{test_stdout}\n{test_stderr}")
-                unit_test_result = f'Unit Test Failed:\n{test_stdout.strip()}\n{test_stderr.strip()}'
+                print(f"Unit tests failed:\n{test_stdout}\n{test_stderr}")
+                unit_test_result = f'Unit Tests Failed:\n{test_stdout.strip()}\n{test_stderr.strip()}'
         except Exception as e:
-            print(f"Unit test failed: {str(e)}")
-            unit_test_result = f'Unit Test Failed: {str(e)}'
+            print(f"Unit tests failed: {str(e)}")
+            unit_test_result = f'Unit Tests Failed: {str(e)}'
 
         return 'Success', unit_test_result
     else:
@@ -275,6 +248,29 @@ def collect_student_code(src_path):
                     code_contents += f.read()
                     code_contents += "\n\n"
     return code_contents
+
+# Collect unit test files from 'UnitTests/Task-{task_number}' directory
+unit_tests_dir = os.path.join(os.getcwd(), 'UnitTests', f'Task-{task_number}')
+
+unit_test_files = []
+test_class_names = []
+if os.path.exists(unit_tests_dir):
+    for file in os.listdir(unit_tests_dir):
+        if file.endswith('.java'):
+            unit_test_file = os.path.join(unit_tests_dir, file)
+            unit_test_files.append(unit_test_file)
+            class_name = os.path.splitext(file)[0]
+            test_class_names.append(class_name)
+    print(f"Collected unit test files: {unit_test_files}")
+    print(f"Test class names: {test_class_names}")
+else:
+    print(f"No unit tests found for Task {task_number} in {unit_tests_dir}")
+    # Decide whether to exit or proceed without unit tests
+    if run_tests:
+        print("Unit tests are enabled, but no unit tests were found. Exiting.")
+        sys.exit(1)
+    else:
+        print("Proceeding without unit tests.")
 
 # Function to call GPT for analysis with different types of prompts
 def analyze_with_gpt(code_contents, program_result, unit_test_result, analysis_type):
@@ -306,10 +302,9 @@ def analyze_with_gpt(code_contents, program_result, unit_test_result, analysis_t
         Resultatet av enhetstesterna är:
         {unit_test_result}
 
-        Var vänlig hjälp studenten att identifiera problem i sin kod som ledde till att testerna misslyckades, och ge förslag på hur de kan åtgärdas utan att lösa problemen åt dem. 
-        Ge även ledtrådar till var i koden studenten bör undersöka.
-
-        Ge svaret kort, max 100 ord och fokusera på att hjälpa studenten att förstå hur man fixar testfelet. Ge bara feedbackpå studentens kod och anta testerna som perfekta.
+        Hjälp studenten att identifiera var i koden det kan finnas fel, och ge förslag på förbättringar utan att ge direkta lösningar. Fokusera på att leda studenten till rätt del av koden och uppmuntra dem att analysera det.
+        Anta testerna som perfekta och undvik att nämn dess existens.
+        Ge svaret kort, max 100 ord och fokusera på att hjälpa studenten att förstå.
         """
     elif analysis_type == 'compile_failure':
         prompt = f"""
@@ -326,6 +321,7 @@ def analyze_with_gpt(code_contents, program_result, unit_test_result, analysis_t
         {unit_test_result}
 
         Hjälp studenten att förstå varför koden inte fungerar.
+        Anta att testerna är perfekta och undvik att nämna att de existerar.
 
         Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan göra för att lära sig hur man löser det.
         """
@@ -346,7 +342,6 @@ def analyze_with_gpt(code_contents, program_result, unit_test_result, analysis_t
     except Exception as e:
         print(f"Error calling OpenAI API: {e}")
         return "Kunde inte generera analys på grund av ett fel med OpenAI API."
-
 
 # Iterate over each student and generate the GitHub URL dynamically
 results = []
@@ -370,18 +365,18 @@ for i, student_name in enumerate(student_names):
         print(f"Looking for src directory at {src_path}")
         if not os.path.exists(src_path):
             print(f"No src directory found in {repo_path}")
-            results.append((web_url, 'No src directory found', 'No src directory found', issue_status))
+            results.append((web_url, 'No src directory found', 'No src directory found', issue_status, gpt_analysis))
             continue
 
-        # Compile, run the Java class, and run unit tests (if specified)
-        program_result, unit_test_result = run_java_class(repo_path, src_path)
+        # Call run_java_class with the new parameters
+        program_result, unit_test_result = run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_tests_dir)
 
-        # Call GPT for analysis if enabled
+        #Call GPT for analysis if enabled
         if use_gpt:
             code_contents = collect_student_code(src_path)
             analysis_type = (
-                'pass' if program_result == 'Success' and unit_test_result == 'Unit Test Passed'
-                else 'test_failure' if program_result == 'Success' and 'Unit Test Failed' in unit_test_result
+                'pass' if program_result == 'Success' and unit_test_result == 'Unit Tests Passed'
+                else 'test_failure' if program_result == 'Success' and 'Unit Tests Failed' in unit_test_result
                 else 'compile_failure'
             )
             gpt_analysis = analyze_with_gpt(code_contents, program_result, unit_test_result, analysis_type)
@@ -391,20 +386,19 @@ for i, student_name in enumerate(student_names):
         if use_gpt:
             # If GPT is enabled, use only GPT analysis as the issue body
             issue_body = f"GPT Analysis: {gpt_analysis}"
-        else:   
+        else:
             # If GPT is not enabled, include the program result and unit test result
             issue_body = f"Compilation result: {program_result}\nUnit test result: {unit_test_result}"
 
-
         # Create an issue for all outcomes (pass, test fail, compilation fail)
-        if program_result == 'Success' and unit_test_result == 'Unit Test Passed':
+        if program_result == 'Success' and unit_test_result == 'Unit Tests Passed':
             issue_title = 'PASS!'
             issue_status = "PASS"
-        elif program_result == 'Success' and 'Unit Test Failed' in unit_test_result:
-            issue_title = 'Kompletering!'
+        elif program_result == 'Success' and 'Unit Tests Failed' in unit_test_result:
+            issue_title = 'Kompletering'
             issue_status = "Kompletering"
         else:
-            issue_title = 'Compilation Failure'
+            issue_title = 'Kompletering'
             issue_status = "Compilation Failure"
 
         # Auto-create GitHub issues for all cases
