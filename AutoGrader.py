@@ -9,6 +9,7 @@ This script also automatically creates issues on the students' GitHub repositori
 It can also generate detailed feedback using GPT analysis.
 GitHub Repository: https://github.com/T-Mose/AutomatedGrading
 """
+
 import os
 import subprocess
 import git
@@ -17,7 +18,8 @@ import threading
 import sys
 import time
 from github import Github
-from openai import OpenAI  # Commented out since OpenAI module isn't imported in this context
+from openai import OpenAI
+from datetime import datetime, timedelta  # Import datetime and timedelta
 
 # Check for input parameters
 if len(sys.argv) < 2 or not (1 <= int(sys.argv[1]) <= 9):
@@ -149,18 +151,18 @@ def run_with_timeout(command, cwd, timeout):
 
 # Function to compile and run the Java class and unit tests
 def run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_tests_dir):
-    # Collect all Java file names relative to src_path
+    # Collect all Java file names relative to src_path, excluding files with 'Test' in the filename
     java_files = []
     for root, dirs, files in os.walk(src_path):
         for file in files:
-            if file.endswith('.java'):
+            if file.endswith('.java') and 'Test' not in file:
                 # Get relative path to src_path
                 file_full_path = os.path.join(root, file)
                 file_relative_path = os.path.relpath(file_full_path, src_path)
                 java_files.append(file_relative_path)
 
     if not java_files:
-        return "No Java files found", None
+        return "No Java files found to compile (excluding test files)", None
 
     # Compile the student's Java files
     compile_command = ['javac', '-d', repo_path] + java_files
@@ -170,7 +172,8 @@ def run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_
             compile_command, cwd=src_path, timeout=TIMEOUT_SECONDS
         )
         if returncode != 0:
-            return f'Compilation Failed: {stderr.strip()}', None
+            unit_test_result = 'Unit tests could not be run because compilation failed.'
+            return f'Compilation Failed: {stderr.strip()}', unit_test_result
     except Exception as e:
         return f"Compilation Error: {str(e)}", None
 
@@ -230,7 +233,7 @@ def collect_student_code(src_path):
     code_contents = ""
     for root, dirs, files in os.walk(src_path):
         for file in files:
-            if file.endswith('.java'):
+            if file.endswith('.java') and 'Test' not in file:
                 java_file_path = os.path.join(root, file)
                 with open(java_file_path, 'r', encoding='utf-8') as f:
                     code_contents += f"// File: {file}\n"
@@ -265,6 +268,12 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
         Studentens kod är som följer:
 
         {code_contents}
+
+        Resultatet av kompileringen är:
+        {compilation_result}
+
+        Resultatet av enhetstesterna är:
+        {unit_test_result}
 
         Programmet fungerar och alla enhetstester har klarats.
 
@@ -301,6 +310,9 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
         Resultatet av kompileringen är:
         {compilation_result}
 
+        Resultatet av enhetstesterna är:
+        {unit_test_result}
+
         Hjälp studenten att förstå varför koden inte fungerar.
 
         Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan göra för att lära sig hur man löser det.
@@ -333,54 +345,102 @@ for i, student_name in enumerate(student_names):
         # Clone the repository
         git.Repo.clone_from(git_url, repo_path)
 
-        # Navigate to the src directory if it exists
-        src_path = os.path.join(repo_path, 'src')
-        if not os.path.exists(src_path):
-            # No src directory found
-            results.append((web_url, 'No src directory found', 'No src directory found', 'Kompletering', gpt_analysis))
-            continue
+        # Check the latest commit date across all branches
+        repo = git.Repo(repo_path)
+        latest_commit_date = None
 
-        # Compile and run the Java class and unit tests
-        compilation_result, unit_test_result = run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_tests_dir)
+        for branch in repo.branches:
+            commits = list(repo.iter_commits(branch))
+            if commits:
+                branch_latest_commit = commits[0]
+                branch_latest_commit_date = datetime.fromtimestamp(branch_latest_commit.committed_date)
+                if (latest_commit_date is None) or (branch_latest_commit_date > latest_commit_date):
+                    latest_commit_date = branch_latest_commit_date
 
-        # Call GPT for analysis if enabled
-        if use_gpt:
-            code_contents = collect_student_code(src_path)
-            analysis_type = (
-                'pass' if compilation_result == 'Success' and unit_test_result == 'Unit Tests Passed'
-                else 'test_failure' if compilation_result == 'Success' and 'Unit Tests Failed' in unit_test_result
-                else 'compile_failure'
-            )
-            gpt_analysis = analyze_with_gpt(code_contents, compilation_result, unit_test_result, analysis_type)
-
-        # Create the issue title and body based on the result
-        if use_gpt:
-            # If GPT is enabled, use only GPT analysis as the issue body
-            issue_body = f"GPT Analysis: {gpt_analysis}"
+        if latest_commit_date is None:
+            # No commits found
+            compilation_result = 'No commits found'
+            unit_test_result = 'Unit test not run'
+            issue_status = 'Fail'
+            issue_title = 'Fail'
+            issue_body = 'Contact me for explanation.'
+            proceed_with_grading = False
         else:
-            # If GPT is not enabled, include the compilation result and unit test result
-            issue_body = f"Compilation result: {compilation_result}\nUnit test result: {unit_test_result}"
+            current_date = datetime.now()
+            one_month_ago = current_date - timedelta(days=30)
+            if latest_commit_date < one_month_ago:
+                # Latest commit is older than one month ago
+                compilation_result = 'No recent commits'
+                unit_test_result = 'Unit test not run'
+                issue_status = 'Fail'
+                issue_title = 'Fail'
+                issue_body = 'Contact me for explanation.'
+                proceed_with_grading = False
+            else:
+                proceed_with_grading = True
 
-        # Adjust issue status to only "PASS" or "Kompletering"
-        if compilation_result == 'Success' and unit_test_result == 'Unit Tests Passed':
-            issue_title = 'PASS!'
-            issue_status = 'PASS'
-        else:
-            issue_title = 'Kompletering'
-            issue_status = 'Kompletering'
+        if proceed_with_grading:
+            # Proceed with the rest of the processing
+            # Navigate to the src directory if it exists
+            src_path = os.path.join(repo_path, 'src')
+            if not os.path.exists(src_path):
+                # No src directory found
+                compilation_result = 'No src directory found'
+                unit_test_result = 'No src directory found'
+                issue_status = 'Kompletering'
+                issue_title = 'Kompletering'
+                issue_body = 'No src directory found. Please check your repository structure.'
+            else:
+                # Compile and run the Java class and unit tests
+                compilation_result, unit_test_result = run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_tests_dir)
 
-        # Auto-create GitHub issues for all cases
+                # Call GPT for analysis if enabled
+                if use_gpt:
+                    code_contents = collect_student_code(src_path)
+                    analysis_type = (
+                        'pass' if compilation_result == 'Success' and unit_test_result == 'Unit Tests Passed'
+                        else 'test_failure' if compilation_result == 'Success' and 'Unit Tests Failed' in unit_test_result
+                        else 'compile_failure'
+                    )
+                    gpt_analysis = analyze_with_gpt(code_contents, compilation_result, unit_test_result, analysis_type)
+
+                # Create the issue title and body based on the result
+                if compilation_result == 'Success' and unit_test_result == 'Unit Tests Passed':
+                    issue_title = 'PASS!'
+                    issue_status = 'PASS'
+                else:
+                    issue_title = 'Kompletering'
+                    issue_status = 'Kompletering'
+
+                if use_gpt:
+                    # If GPT is enabled, use only GPT analysis as the issue body
+                    issue_body = f"GPT Analysis: {gpt_analysis}"
+                else:
+                    # If GPT is not enabled, include the compilation result and unit test result
+                    issue_body = f"Compilation result: {compilation_result}\nUnit test result: {unit_test_result}"
+        # Create GitHub issue if auto_create_issues is True
         if auto_create_issues and g is not None:
             create_github_issue(student_name.strip(), task_number, issue_title, issue_body)
 
         # Append the final results after issue processing
         results.append((web_url, compilation_result, unit_test_result, issue_status, gpt_analysis))
+        print(f"Graded repository for student: {student_name} and results are: {issue_status}")
 
     except Exception as e:
         # Print error messages for each student
         print(f"Error processing {student_name.strip()}: {str(e)}")
-        results.append((web_url, f'Error: {str(e)}', 'Unit test not run', 'Kompletering', gpt_analysis))
-    print(f"Graded repository for student: {student_name} and results are: {issue_status}")
+        compilation_result = f'Error: {str(e)}'
+        unit_test_result = 'Unit test not run'
+        issue_status = 'Fail'
+        issue_title = 'Fail'
+        issue_body = 'Contact me for explanation.'
+
+        # Create issue if auto_create_issues is True
+        if auto_create_issues and g is not None:
+            create_github_issue(student_name.strip(), task_number, issue_title, issue_body)
+
+        results.append((web_url, compilation_result, unit_test_result, issue_status, gpt_analysis))
+        print(f"Graded repository for student: {student_name} and results are: {issue_status}")
 
 # Save results back to a new Excel file with both issue and GPT columns
 result_df = pd.DataFrame(results, columns=['Web URL', 'Compilation Result', 'Unit Test Result', 'Issue Status', 'GPT Analysis'])
