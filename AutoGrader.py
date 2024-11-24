@@ -22,7 +22,7 @@ from openai import OpenAI
 from datetime import datetime, timedelta  # Import datetime and timedelta
 
 # Check for input parameters
-if len(sys.argv) < 2 or not (1 <= int(sys.argv[1]) <= 9):
+if len(sys.argv) < 2 or not sys.argv[1].isdigit() or int(sys.argv[1]) <= 0:
     print("Usage: python script_name.py <task_number> [Y/N] [Y/N] [Y/N]")
     print("The first Y/N is for running unit tests (default: Y)")
     print("The second Y/N is for auto-creating issues (default: N)")
