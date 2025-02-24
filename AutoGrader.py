@@ -367,7 +367,7 @@ for i, student_name in enumerate(student_names):
             proceed_with_grading = False
         else:
             current_date = datetime.now()
-            one_month_ago = current_date - timedelta(days=30)
+            one_month_ago = current_date - timedelta(days=14)
             if latest_commit_date < one_month_ago:
                 # Latest commit is older than one month ago
                 compilation_result = 'No recent commits'
