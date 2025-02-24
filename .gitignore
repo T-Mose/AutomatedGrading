@@ -1,2 +1,4 @@
 # Ignore environment files containing sensitive information
-API_TOKENS.env
+*.env
+*.xlsx
+student_repos/
