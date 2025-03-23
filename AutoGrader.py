@@ -1,12 +1,13 @@
 """
 Auto Compiler Script
 Created by: Theodor Malmgren (GitHub: T-Mose)
-Date: September 13, 2024
+Date: September 13, 2024 (Modified on current date for Go integration)
 Description:
-This script automates the process of cloning and compiling Java student assignments. 
-It fetches student repositories and compiles the Java files and optionally runs unit tests.
-This script also automatically creates issues on the students' GitHub repositories for simpler results.
-It can also generate detailed feedback using GPT analysis.
+This script automates the process of cloning and compiling student assignments for both Java and Go.
+For Java tasks (Task-1 to Task-19), the repository suffix is as before (with a special case for Task-19).
+For Go tasks (Task-20 and above), the repository suffix becomes palinda-<n> (e.g. Task-20 → palinda-1).
+It fetches student repositories, compiles their code, and optionally runs unit tests.
+It also creates issues on GitHub and can generate detailed feedback using GPT analysis.
 GitHub Repository: https://github.com/T-Mose/AutomatedGrading
 """
 
@@ -19,7 +20,11 @@ import sys
 import time
 from github import Github
 from openai import OpenAI
-from datetime import datetime, timedelta  # Import datetime and timedelta
+from datetime import datetime, timedelta
+import shutil
+
+FAIL_TIMER = 100
+TIMEOUT_SECONDS = 60  # Timeout value for subprocesses (in seconds)
 
 # Check for input parameters
 if len(sys.argv) < 2 or not sys.argv[1].isdigit() or int(sys.argv[1]) <= 0:
@@ -30,6 +35,14 @@ if len(sys.argv) < 2 or not sys.argv[1].isdigit() or int(sys.argv[1]) <= 0:
     sys.exit(1)
 
 task_number = sys.argv[1]  # The task number, e.g., "2"
+
+# Determine language and repository suffix based on the task number
+if int(task_number) < 20:
+    language = "java"
+    repo_suffix = "quicksort" if task_number == "19" else f"task-{task_number}"
+else:
+    language = "go"
+    repo_suffix = f"palinda-{int(task_number)-19}"
 
 # Determine whether to run unit tests
 run_tests = True  # Default is to run tests
@@ -83,15 +96,15 @@ if os.path.exists(env_file_path):
                     openai_api_key = value.strip()
 else:
     print("API_TOKENS.env file not found. Issues will not be auto-created, GPT analysis will be disabled.")
-    auto_create_issues = False  # Ensure issues are not created without a token
-    use_gpt = False  # Ensure GPT is not used without a token
+    auto_create_issues = False
+    use_gpt = False
 
 # Initialize GitHub API client if token is available
 if github_token and auto_create_issues:
     GITHUB_ENTERPRISE_URL = 'https://gits-15.sys.kth.se'
     g = Github(base_url=GITHUB_ENTERPRISE_URL + '/api/v3', login_or_token=github_token)
 else:
-    g = None  # GitHub client is not initialized
+    g = None
 
 # Initialize OpenAI API client if API key is available
 if openai_api_key and use_gpt:
@@ -103,8 +116,8 @@ else:
         use_gpt = False
 
 # Path to the Excel file (assuming it's in the same directory as the script)
-excel_path = os.path.join(os.getcwd(), 'students.xlsx')  # Replace with a generic filename for all TAs
-# Paths to the JUnit and Hamcrest JAR files (assuming they're in the current directory)
+excel_path = os.path.join(os.getcwd(), 'students.xlsx')
+# For Java tasks, these JAR paths are used; for Go tasks they won’t be used.
 junit_jar = os.path.join(os.getcwd(), 'junit-4.13.2.jar')
 hamcrest_jar = os.path.join(os.getcwd(), 'hamcrest-core-1.3.jar')
 
@@ -113,22 +126,16 @@ base_url = "git@gits-15.sys.kth.se:inda-24/"
 
 # Read student names from the Excel file (assuming names are in column A)
 df = pd.read_excel(excel_path, usecols='A', header=None)
-student_names = df[df.columns[0]].dropna()  # Drop any empty rows, process all names in column A
+student_names = df[df.columns[0]].dropna()
 
-# Generate GitHub URLs based on student names and task number
-urls = [f"{base_url}{name.strip()}-task-{task_number}.git" for name in student_names]
+# Generate GitHub URLs based on student names and repo_suffix
+urls = [f"{base_url}{name.strip()}-{repo_suffix}.git" for name in student_names]
 
 # Folder to clone repositories
 base_folder = os.path.join(os.getcwd(), 'student_repos')
-
-# Create a folder to store the cloned repos, remove it first if it exists
 if os.path.exists(base_folder):
-    import shutil
-    shutil.rmtree(base_folder)  # Remove the existing directory and all its contents
-os.mkdir(base_folder)  # Create a new folder
-
-# Timeout value for subprocesses (in seconds)
-TIMEOUT_SECONDS = 60  # Adjust as needed
+    shutil.rmtree(base_folder)
+os.mkdir(base_folder)
 
 # Function to run a command with timeout
 def run_with_timeout(command, cwd, timeout):
@@ -137,11 +144,11 @@ def run_with_timeout(command, cwd, timeout):
         cwd=cwd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        stdin=subprocess.DEVNULL,  # Redirect stdin to avoid waiting for input
+        stdin=subprocess.DEVNULL,
         text=True,
         shell=False
     )
-    timer = threading.Timer(timeout, process.kill)  # Kill the process after timeout
+    timer = threading.Timer(timeout, process.kill)
     try:
         timer.start()
         stdout, stderr = process.communicate()
@@ -149,14 +156,12 @@ def run_with_timeout(command, cwd, timeout):
     finally:
         timer.cancel()
 
-# Function to compile and run the Java class and unit tests
+# Java testing function remains unchanged
 def run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_tests_dir):
-    # Collect all Java file names relative to src_path, excluding files with 'Test' in the filename
     java_files = []
     for root, dirs, files in os.walk(src_path):
         for file in files:
             if file.endswith('.java') and 'Test' not in file:
-                # Get relative path to src_path
                 file_full_path = os.path.join(root, file)
                 file_relative_path = os.path.relpath(file_full_path, src_path)
                 java_files.append(file_relative_path)
@@ -164,9 +169,7 @@ def run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_
     if not java_files:
         return "No Java files found to compile (excluding test files)", None
 
-    # Compile the student's Java files
     compile_command = ['javac', '-d', repo_path] + java_files
-
     try:
         returncode, stdout, stderr = run_with_timeout(
             compile_command, cwd=src_path, timeout=TIMEOUT_SECONDS
@@ -177,21 +180,14 @@ def run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_
     except Exception as e:
         return f"Compilation Error: {str(e)}", None
 
-    # If unit tests should be run
     if run_tests:
-        # Compile the unit tests using the student's compiled files
-        # Use os.pathsep to construct classpath
         classpath = os.pathsep.join([repo_path, junit_jar, hamcrest_jar])
-
-        # Collect unit test file names relative to their directory
         unit_test_relative_files = []
         for unit_test_file in unit_test_files:
             unit_test_relative_path = os.path.relpath(unit_test_file, unit_tests_dir)
             unit_test_relative_files.append(unit_test_relative_path)
 
-        # Compile the unit tests
         compile_test_command = ['javac', '-cp', classpath] + unit_test_relative_files + ['-d', repo_path]
-
         try:
             returncode, stdout, stderr = run_with_timeout(
                 compile_test_command, cwd=unit_tests_dir, timeout=TIMEOUT_SECONDS
@@ -201,7 +197,6 @@ def run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_
         except Exception as e:
             return 'Success', f"Unit Test Compilation Error: {str(e)}"
 
-        # Run the unit tests using JUnitCore
         try:
             run_test_command = ['java', '-cp', classpath, 'org.junit.runner.JUnitCore'] + test_class_names
             returncode, test_stdout, test_stderr = run_with_timeout(
@@ -216,111 +211,183 @@ def run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_
 
         return 'Success', unit_test_result
     else:
-        # If not running unit tests, just indicate compilation success
         return 'Success', 'Unit tests not run'
 
-# Function to create an issue on GitHub
-def create_github_issue(student_username, task_number, title, body):
+def run_go_tests(repo_path, src_path, unit_tests_dir):
+    # Create a temporary directory for testing
+    go_test_temp = os.path.join(repo_path, 'go_test_temp')
+    if os.path.exists(go_test_temp):
+        shutil.rmtree(go_test_temp)
+    os.mkdir(go_test_temp)
+
+    # Gather instructor test files (those ending with _test.go)
+    instructor_test_files = [f for f in os.listdir(unit_tests_dir) if f.endswith('_test.go')]
+    if not instructor_test_files:
+        return "No instructor test files found", None
+
+    # For each instructor test file, copy the corresponding student source file and the test file
+    for test_file in instructor_test_files:
+        # Determine the corresponding student source file name by removing the _test suffix.
+        base_name = test_file.replace('_test.go', '.go')
+        student_file_path = os.path.join(src_path, base_name)
+        # If not found directly, try searching recursively.
+        if not os.path.exists(student_file_path):
+            found = False
+            for root, dirs, files in os.walk(src_path):
+                if base_name in files:
+                    student_file_path = os.path.join(root, base_name)
+                    found = True
+                    break
+            if not found:
+                print(f"Warning: Student file {base_name} not found. Skipping this test.")
+                continue
+
+        # Copy the student source file into the temporary test directory.
+        shutil.copy(student_file_path, os.path.join(go_test_temp, base_name))
+        # Copy the corresponding instructor test file into the temporary test directory.
+        instructor_test_file_path = os.path.join(unit_tests_dir, test_file)
+        shutil.copy(instructor_test_file_path, os.path.join(go_test_temp, test_file))
+
+    # Run go tests in the temporary directory.
+    test_command = ['go', 'test', '-v', './...']
     try:
-        repo_name = f"inda-24/{student_username}-task-{task_number}"
-        repo = g.get_repo(repo_name)
-        issue = repo.create_issue(title=title, body=body)
+        returncode, test_stdout, test_stderr = run_with_timeout(test_command, cwd=go_test_temp, timeout=TIMEOUT_SECONDS)
+        if returncode == 0:
+            unit_test_result = 'Unit Tests Passed'
+        else:
+            unit_test_result = f'Unit Tests Failed:\n{test_stdout.strip()}\n{test_stderr.strip()}'
     except Exception as e:
-        print(f"Error creating issue for {student_username}: {e}")
+        unit_test_result = f'Unit Tests Failed: {str(e)}'
 
-# Function to collect student's code into a single string
-def collect_student_code(src_path):
-    code_contents = ""
-    for root, dirs, files in os.walk(src_path):
-        for file in files:
-            if file.endswith('.java') and 'Test' not in file:
-                java_file_path = os.path.join(root, file)
-                with open(java_file_path, 'r', encoding='utf-8') as f:
-                    code_contents += f"// File: {file}\n"
-                    code_contents += f.read()
-                    code_contents += "\n\n"
-    return code_contents
+    try:
+        shutil.rmtree(go_test_temp)
+    except Exception as e:
+        print(f"Warning: Could not remove temporary directory {go_test_temp}: {str(e)}")
 
-# Collect unit test files from 'UnitTests/Task-{task_number}' directory
-unit_tests_dir = os.path.join(os.getcwd(), 'UnitTests', f'Task-{task_number}')
+    return 'Success', unit_test_result
 
-unit_test_files = []
-test_class_names = []
-if os.path.exists(unit_tests_dir):
-    for file in os.listdir(unit_tests_dir):
-        if file.endswith('.java'):
-            unit_test_file = os.path.join(unit_tests_dir, file)
-            unit_test_files.append(unit_test_file)
-            class_name = os.path.splitext(file)[0]
-            test_class_names.append(class_name)
-else:
-    if run_tests:
-        print(f"No unit tests found for Task {task_number} in {unit_tests_dir}")
-        print("Unit tests are enabled, but no unit tests were found. Exiting.")
-        sys.exit(1)
 
-# Function to call GPT for analysis with different types of prompts
-def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analysis_type):
-    if analysis_type == 'pass':
-        prompt = f"""
-        Du är en Java-expert som hjälper en student att förbättra sin kod.
 
-        Studentens kod är som följer:
 
-        {code_contents}
+# Modular GPT analysis function for both Java and Go
+def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analysis_type, language):
+    if language == "java":
+        if analysis_type == 'pass':
+            prompt = f"""
+            Du är en Java-expert som hjälper en student att förbättra sin kod.
 
-        Resultatet av kompileringen är:
-        {compilation_result}
+            Studentens kod är som följer:
 
-        Resultatet av enhetstesterna är:
-        {unit_test_result}
+            {code_contents}
 
-        Programmet fungerar och alla enhetstester har klarats.
+            Resultatet av kompileringen är:
+            {compilation_result}
 
-        Ge konstruktiv feedback om hur studenten kan förbättra sin kod, till exempel förbättring av kodstruktur, prestanda eller läsbarhet.
+            Resultatet av enhetstesterna är:
+            {unit_test_result}
 
-        Ge svaret kort, max 100 ord.
-        """
-    elif analysis_type == 'test_failure':
-        prompt = f"""
-        Du är en Java-expert som hjälper en student att debugga sin kod.
+            Programmet fungerar och alla enhetstester har klarats.
 
-        Studentens kod är som följer:
+            Ge konstruktiv feedback om hur studenten kan förbättra sin kod, till exempel förbättring av kodstruktur, prestanda eller läsbarhet.
 
-        {code_contents}
+            Ge svaret kort, max 100 ord.
+            """
+        elif analysis_type == 'test_failure':
+            prompt = f"""
+            Du är en Java-expert som hjälper en student att debugga sin kod.
 
-        Resultatet av kompileringen är:
-        {compilation_result}
+            Studentens kod är som följer:
 
-        Resultatet av enhetstesterna är:
-        {unit_test_result}
+            {code_contents}
 
-        Hjälp studenten att identifiera var i koden det kan finnas fel, och ge förslag på förbättringar utan att ge direkta lösningar. Fokusera på att leda studenten till rätt del av koden och uppmuntra dem att analysera det.
-        Anta testerna som perfekta och undvik att nämn dess existens.
-        Ge svaret kort, max 100 ord och fokusera på att hjälpa studenten att förstå.
-        """
-    elif analysis_type == 'compile_failure':
-        prompt = f"""
-        Du är en Java-expert som hjälper en student att debugga sin kod.
+            Resultatet av kompileringen är:
+            {compilation_result}
 
-        Studentens kod är som följer:
+            Resultatet av enhetstesterna är:
+            {unit_test_result}
 
-        {code_contents}
+            Hjälp studenten att identifiera var i koden det kan finnas fel, och ge förslag på förbättringar utan att ge direkta lösningar. Fokusera på att leda studenten till rätt del av koden och uppmuntra dem att analysera det.
+            Anta testerna som perfekta och undvik att nämn dess existens.
+            Ge svaret kort, max 100 ord och fokusera på att hjälpa studenten att förstå.
+            """
+        elif analysis_type == 'compile_failure':
+            prompt = f"""
+            Du är en Java-expert som hjälper en student att debugga sin kod.
 
-        Resultatet av kompileringen är:
-        {compilation_result}
+            Studentens kod är som följer:
 
-        Resultatet av enhetstesterna är:
-        {unit_test_result}
+            {code_contents}
 
-        Hjälp studenten att förstå varför koden inte fungerar.
+            Resultatet av kompileringen är:
+            {compilation_result}
 
-        Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan göra för att lära sig hur man löser det.
-        """
-    # Call GPT for analysis
+            Resultatet av enhetstesterna är:
+            {unit_test_result}
+
+            Hjälp studenten att förstå varför koden inte fungerar.
+
+            Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan göra för att lära sig hur man löser det.
+            """
+    elif language == "go":
+        if analysis_type == 'pass':
+            prompt = f"""
+            Du är en Go-expert som hjälper en student att förbättra sin kod.
+
+            Studentens kod är som följer:
+
+            {code_contents}
+
+            Resultatet av byggprocessen är:
+            {compilation_result}
+
+            Resultatet av enhetstesterna är:
+            {unit_test_result}
+
+            Programmet fungerar och alla enhetstester har klarats.
+
+            Ge konstruktiv feedback om hur studenten kan förbättra sin kod, till exempel förbättring av kodstruktur, prestanda eller läsbarhet.
+
+            Ge svaret kort, max 100 ord.
+            """
+        elif analysis_type == 'test_failure':
+            prompt = f"""
+            Du är en Go-expert som hjälper en student att debugga sin kod.
+
+            Studentens kod är som följer:
+
+            {code_contents}
+
+            Resultatet av byggprocessen är:
+            {compilation_result}
+
+            Resultatet av enhetstesterna är:
+            {unit_test_result}
+
+            Hjälp studenten att identifiera var i koden det kan finnas fel, och ge förslag på förbättringar utan att ge direkta lösningar. Fokusera på att leda studenten till rätt del av koden och uppmuntra dem att analysera det.
+            Anta testerna som perfekta och undvik att nämn dess existens.
+            Ge svaret kort, max 100 ord och fokusera på att hjälpa studenten att förstå.
+            """
+        elif analysis_type == 'compile_failure':
+            prompt = f"""
+            Du är en Go-expert som hjälper en student att debugga sin kod.
+
+            Studentens kod är som följer:
+
+            {code_contents}
+
+            Resultatet av byggprocessen är:
+            {compilation_result}
+
+            Resultatet av enhetstesterna är:
+            {unit_test_result}
+
+            Hjälp studenten att förstå varför koden inte fungerar.
+
+            Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan göra för att lära sig hur man löser det.
+            """
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",  # or gpt-3.5-turbo depending on your access
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500,
             temperature=0.7,
@@ -330,16 +397,50 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
     except Exception as e:
         return "Kunde inte generera analys på grund av ett fel med OpenAI API."
 
+# Function to collect student's code (filters by language)
+def collect_student_code(src_path, language):
+    code_contents = ""
+    for root, dirs, files in os.walk(src_path):
+        for file in files:
+            if language == "java":
+                if file.endswith('.java') and 'Test' not in file:
+                    with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
+                        code_contents += f"// File: {file}\n" + f.read() + "\n\n"
+            elif language == "go":
+                if file.endswith('.go') and not file.endswith('_test.go'):
+                    with open(os.path.join(root, file), 'r', encoding='utf-8') as f:
+                        code_contents += f"// File: {file}\n" + f.read() + "\n\n"
+    return code_contents
+
+# Collect unit test files from 'UnitTests/Task-{task_number}' directory
+unit_tests_dir = os.path.join(os.getcwd(), 'UnitTests', f'Task-{task_number}')
+unit_test_files = []
+test_class_names = []
+if os.path.exists(unit_tests_dir):
+    if language == "java":
+        for file in os.listdir(unit_tests_dir):
+            if file.endswith('.java'):
+                unit_test_file = os.path.join(unit_tests_dir, file)
+                unit_test_files.append(unit_test_file)
+                class_name = os.path.splitext(file)[0]
+                test_class_names.append(class_name)
+    # For Go, we assume all .go files in the UnitTests directory are instructor tests.
+else:
+    if run_tests:
+        print(f"No unit tests found for Task {task_number} in {unit_tests_dir}")
+        print("Unit tests are enabled, but no unit tests were found. Exiting.")
+        sys.exit(1)
+
 # Iterate over each student and generate the GitHub URL dynamically
 results = []
 
 for i, student_name in enumerate(student_names):
-    repo_name = f"repo_{i}"
-    git_url = f"{base_url}{student_name.strip()}-task-{task_number}.git"
-    web_url = f"https://gits-15.sys.kth.se/inda-24/{student_name.strip()}-task-{task_number}"  # The website URL format
-    repo_path = os.path.join(base_folder, repo_name)
-    issue_status = "not created"  # Default status for issue
-    gpt_analysis = 'No GPT analysis'  # Default for GPT
+    repo_name_local = f"repo_{i}"
+    git_url = f"{base_url}{student_name.strip()}-{repo_suffix}.git"
+    web_url = f"https://gits-15.sys.kth.se/inda-24/{student_name.strip()}-{repo_suffix}"
+    repo_path = os.path.join(base_folder, repo_name_local)
+    issue_status = "not created"
+    gpt_analysis = 'No GPT analysis'
 
     try:
         # Clone the repository
@@ -348,7 +449,6 @@ for i, student_name in enumerate(student_names):
         # Check the latest commit date across all branches
         repo = git.Repo(repo_path)
         latest_commit_date = None
-
         for branch in repo.branches:
             commits = list(repo.iter_commits(branch))
             if commits:
@@ -358,7 +458,6 @@ for i, student_name in enumerate(student_names):
                     latest_commit_date = branch_latest_commit_date
 
         if latest_commit_date is None:
-            # No commits found
             compilation_result = 'No commits found'
             unit_test_result = 'Unit test not run'
             issue_status = 'Fail'
@@ -367,9 +466,8 @@ for i, student_name in enumerate(student_names):
             proceed_with_grading = False
         else:
             current_date = datetime.now()
-            one_month_ago = current_date - timedelta(days=14)
+            one_month_ago = current_date - timedelta(days=FAIL_TIMER)
             if latest_commit_date < one_month_ago:
-                # Latest commit is older than one month ago
                 compilation_result = 'No recent commits'
                 unit_test_result = 'Unit test not run'
                 issue_status = 'Fail'
@@ -380,65 +478,61 @@ for i, student_name in enumerate(student_names):
                 proceed_with_grading = True
 
         if proceed_with_grading:
-            # Proceed with the rest of the processing
-            # Navigate to the src directory if it exists
             src_path = os.path.join(repo_path, 'src')
             if not os.path.exists(src_path):
-                # No src directory found
                 compilation_result = 'No src directory found'
                 unit_test_result = 'No src directory found'
                 issue_status = 'Kompletering'
                 issue_title = 'Kompletering'
                 issue_body = 'No src directory found. Please check your repository structure.'
             else:
-                # Compile and run the Java class and unit tests
-                compilation_result, unit_test_result = run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_tests_dir)
-
-                # Call GPT for analysis if enabled
+                if language == "java":
+                    compilation_result, unit_test_result = run_java_class(repo_path, src_path, unit_test_files, test_class_names, unit_tests_dir)
+                elif language == "go":
+                    compilation_result, unit_test_result = run_go_tests(repo_path, src_path, unit_tests_dir)
                 if use_gpt:
-                    code_contents = collect_student_code(src_path)
+                    code_contents = collect_student_code(src_path, language)
                     analysis_type = (
-                        'pass' if compilation_result == 'Success' and unit_test_result == 'Unit Tests Passed'
-                        else 'test_failure' if compilation_result == 'Success' and 'Unit Tests Failed' in unit_test_result
+                        'pass' if compilation_result == 'Success' and unit_test_result in ['Unit Tests Passed', 'Unit Tests Passed']
+                        else 'test_failure' if compilation_result == 'Success' and 'Failed' in unit_test_result
                         else 'compile_failure'
                     )
-                    gpt_analysis = analyze_with_gpt(code_contents, compilation_result, unit_test_result, analysis_type)
-
-                # Create the issue title and body based on the result
-                if compilation_result == 'Success' and unit_test_result == 'Unit Tests Passed':
+                    gpt_analysis = analyze_with_gpt(code_contents, compilation_result, unit_test_result, analysis_type, language)
+                if compilation_result == 'Success' and (unit_test_result == 'Unit Tests Passed' or unit_test_result == 'Unit Tests Passed'):
                     issue_title = 'PASS!'
                     issue_status = 'PASS'
                 else:
                     issue_title = 'Kompletering'
                     issue_status = 'Kompletering'
-
                 if use_gpt:
-                    # If GPT is enabled, use only GPT analysis as the issue body
                     issue_body = f"GPT Analysis: {gpt_analysis}"
                 else:
-                    # If GPT is not enabled, include the compilation result and unit test result
                     issue_body = f"Compilation result: {compilation_result}\nUnit test result: {unit_test_result}"
-        # Create GitHub issue if auto_create_issues is True
         if auto_create_issues and g is not None:
-            create_github_issue(student_name.strip(), task_number, issue_title, issue_body)
-
-        # Append the final results after issue processing
+            try:
+                repo_suffix_local = "quicksort" if (language == "java" and task_number == "19") else (f"task-{task_number}" if language == "java" else repo_suffix)
+                repo_name = f"inda-24/{student_name.strip()}-{repo_suffix_local}"
+                repo_obj = g.get_repo(repo_name)
+                repo_obj.create_issue(title=issue_title, body=issue_body)
+            except Exception as e:
+                print(f"Error creating issue for {student_name.strip()}: {e}")
         results.append((web_url, compilation_result, unit_test_result, issue_status, gpt_analysis))
         print(f"Graded repository for student: {student_name} and results are: {issue_status}")
-
     except Exception as e:
-        # Print error messages for each student
         print(f"Error processing {student_name.strip()}: {str(e)}")
         compilation_result = f'Error: {str(e)}'
         unit_test_result = 'Unit test not run'
         issue_status = 'Fail'
         issue_title = 'Fail'
         issue_body = 'Contact me for explanation.'
-
-        # Create issue if auto_create_issues is True
         if auto_create_issues and g is not None:
-            create_github_issue(student_name.strip(), task_number, issue_title, issue_body)
-
+            try:
+                repo_suffix_local = "quicksort" if (language == "java" and task_number == "19") else (f"task-{task_number}" if language == "java" else repo_suffix)
+                repo_name = f"inda-24/{student_name.strip()}-{repo_suffix_local}"
+                repo_obj = g.get_repo(repo_name)
+                repo_obj.create_issue(title=issue_title, body=issue_body)
+            except Exception as e:
+                print(f"Error creating issue for {student_name.strip()}: {e}")
         results.append((web_url, compilation_result, unit_test_result, issue_status, gpt_analysis))
         print(f"Graded repository for student: {student_name} and results are: {issue_status}")
 
@@ -447,5 +541,4 @@ result_df = pd.DataFrame(results, columns=['Web URL', 'Compilation Result', 'Uni
 result_df.to_excel('grading_results.xlsx', index=False)
 
 print("Grading complete. Results saved to 'grading_results.xlsx'.")
-# Wait a bit before exiting to ensure all outputs are printed
 time.sleep(1)
