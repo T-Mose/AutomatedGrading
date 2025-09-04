@@ -1,3 +1,9 @@
+# For other people using the tool
+Please contribute to it. My plans:
+Make the tests more robust.
+Fix the structure of the code (took a hit in readability after the PALINDA modification).
+Add an intermediary step between posting the result as an issue where the TA then reads through the code + potentially knows external reasons and changes the tests verdict.
+
 ﻿# Automatic Grader
 
 ## Overview
@@ -219,3 +225,4 @@ This script relies on good unit tests. Ensure that `UnitTests.java` is up-to-dat
 
 ## GitHub
 Created by Theodor Malmgren. [GitHub: T-Mose](https://github.com/T-Mose/AutomatedGrading)
+
