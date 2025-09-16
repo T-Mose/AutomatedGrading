@@ -1,0 +1,16 @@
+[project]
+name = "automated-grading"
+version = "0.1.0"
+description = "Automatic grading script for student Java and Go assignments"
+requires-python = ">=3.8"
+dependencies = [
+    "gitpython>=3.1.0",
+    "pandas>=2.0.0",
+    "PyGithub>=1.59.0",
+    "openai>=1.0.0",
+    "openpyxl>=3.1.0",
+    "python-dotenv>=1.0.0"
+]
+
+[tool.uv]
+dev-dependencies = []

@@ -22,6 +22,7 @@ from github import Github
 from openai import OpenAI
 from datetime import datetime, timedelta
 import shutil
+from dotenv import load_dotenv
 
 FAIL_TIMER = 100
 TIMEOUT_SECONDS = 60  # Timeout value for subprocesses (in seconds)
@@ -80,22 +81,15 @@ if len(sys.argv) >= 5:
         print("Invalid parameter for GPT analysis. Use 'Y' or 'N'.")
         sys.exit(1)
 
-# Load the tokens from API_TOKENS.env if it exists
-github_token = None
-openai_api_key = None
-env_file_path = os.path.join(os.getcwd(), 'API_TOKENS.env')
-if os.path.exists(env_file_path):
-    with open(env_file_path, 'r') as env_file:
-        for line in env_file:
-            line = line.strip()
-            if '=' in line:
-                key, value = line.split('=', 1)
-                if key == 'GITHUB_TOKEN':
-                    github_token = value.strip()
-                elif key == 'OPENAI_API_KEY':
-                    openai_api_key = value.strip()
-else:
-    print("API_TOKENS.env file not found. Issues will not be auto-created, GPT analysis will be disabled.")
+# Load environment variables
+load_dotenv('.env')
+load_dotenv('API_TOKENS.env')  # For backwards compatibility
+
+github_token = os.getenv('GITHUB_TOKEN')
+openai_api_key = os.getenv('OPENAI_API_KEY')
+
+if not github_token and not openai_api_key:
+    print("No API tokens found in environment. Issues will not be auto-created, GPT analysis will be disabled.")
     auto_create_issues = False
     use_gpt = False
 
@@ -122,11 +116,19 @@ junit_jar = os.path.join(os.getcwd(), 'junit-4.13.2.jar')
 hamcrest_jar = os.path.join(os.getcwd(), 'hamcrest-core-1.3.jar')
 
 # Base URL for the GitHub repos
-base_url = "git@gits-15.sys.kth.se:inda-24/"
+base_url = "git@gits-15.sys.kth.se:inda-25/"
 
 # Read student names from the Excel file (assuming names are in column A)
-df = pd.read_excel(excel_path, usecols='A', header=None)
+df = pd.read_excel(excel_path, usecols='A', header=None, engine='openpyxl')
 student_names = df[df.columns[0]].dropna()
+
+# Read non-participating student names from the Excel file (assuming names are in column A)
+non_participating_path = os.path.join(os.getcwd(), 'non_participating.xlsx')
+non_participating_students = set()
+if os.path.exists(non_participating_path):
+    non_participating_df = pd.read_excel(non_participating_path, usecols='A', header=None, engine='openpyxl')
+    non_participating_students = set(non_participating_df[non_participating_df.columns[0]].dropna())
+    print(f"Found {len(non_participating_students)} non-participating students")
 
 # Generate GitHub URLs based on student names and repo_suffix
 urls = [f"{base_url}{name.strip()}-{repo_suffix}.git" for name in student_names]
@@ -386,16 +388,71 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan göra för att lära sig hur man löser det.
             """
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=500,
-            temperature=0.7,
+        response = client.responses.create(
+            model="gpt-5-nano-2025-08-07",
+            input=[{"role": "user", "content": prompt}],
+                reasoning={ "effort": "minimal" },
+    text={ "verbosity": "low" },
         )
-        analysis = response.choices[0].message.content
-        return analysis
+        return response.output_text
     except Exception as e:
+        print(f"Error generating analysis with GPT: {e}")
         return "Kunde inte generera analys på grund av ett fel med OpenAI API."
+
+# Function to strip comments from code
+def strip_comments(code, language):
+    """
+    Strip comments from Java or Go code.
+    Returns (stripped_code, comments_found) for debugging.
+    """
+    import re
+    
+    lines = code.split('\n')
+    stripped_lines = []
+    comments_found = []
+    
+    for line_num, line in enumerate(lines, 1):
+        original_line = line
+        
+        if language == "java":
+            # Remove single-line comments (//)
+            if '//' in line:
+                comment_pos = line.find('//')
+                comment_text = line[comment_pos:]
+                if comment_text.strip():
+                    comments_found.append(f"Line {line_num}: {comment_text.strip()}")
+                line = line[:comment_pos].rstrip()
+            
+            # Handle multi-line comments (/* */) - simple approach
+            while '/*' in line and '*/' in line:
+                start = line.find('/*')
+                end = line.find('*/', start) + 2
+                comment_text = line[start:end]
+                if comment_text.strip():
+                    comments_found.append(f"Line {line_num}: {comment_text.strip()}")
+                line = line[:start] + line[end:]
+                
+        elif language == "go":
+            # Remove single-line comments (//)
+            if '//' in line:
+                comment_pos = line.find('//')
+                comment_text = line[comment_pos:]
+                if comment_text.strip():
+                    comments_found.append(f"Line {line_num}: {comment_text.strip()}")
+                line = line[:comment_pos].rstrip()
+            
+            # Handle multi-line comments (/* */) - simple approach  
+            while '/*' in line and '*/' in line:
+                start = line.find('/*')
+                end = line.find('*/', start) + 2
+                comment_text = line[start:end]
+                if comment_text.strip():
+                    comments_found.append(f"Line {line_num}: {comment_text.strip()}")
+                line = line[:start] + line[end:]
+        
+        stripped_lines.append(line)
+    
+    return '\n'.join(stripped_lines), comments_found
 
 # Function to collect student's code (filters by language)
 def collect_student_code(src_path, language):
@@ -491,13 +548,22 @@ for i, student_name in enumerate(student_names):
                 elif language == "go":
                     compilation_result, unit_test_result = run_go_tests(repo_path, src_path, unit_tests_dir)
                 if use_gpt:
-                    code_contents = collect_student_code(src_path, language)
-                    analysis_type = (
-                        'pass' if compilation_result == 'Success' and unit_test_result in ['Unit Tests Passed', 'Unit Tests Passed']
-                        else 'test_failure' if compilation_result == 'Success' and 'Failed' in unit_test_result
-                        else 'compile_failure'
-                    )
-                    gpt_analysis = analyze_with_gpt(code_contents, compilation_result, unit_test_result, analysis_type, language)
+                    # Check if student is in non-participating list
+                    if student_name.strip() in non_participating_students:
+                        print(f"Student {student_name.strip()} is non-participating - using stack trace instead of GPT")
+                        gpt_analysis = f"Compilation result: {compilation_result}\nUnit test result: {unit_test_result}"
+                    else:
+                        code_contents = collect_student_code(src_path, language)
+                        
+                        # Strip comments from code before GPT analysis
+                        stripped_code, comments_found = strip_comments(code_contents, language)
+                        
+                        analysis_type = (
+                            'pass' if compilation_result == 'Success' and unit_test_result in ['Unit Tests Passed', 'Unit Tests Passed']
+                            else 'test_failure' if compilation_result == 'Success' and 'Failed' in unit_test_result
+                            else 'compile_failure'
+                        )
+                        gpt_analysis = analyze_with_gpt(stripped_code, compilation_result, unit_test_result, analysis_type, language)
                 if compilation_result == 'Success' and (unit_test_result == 'Unit Tests Passed' or unit_test_result == 'Unit Tests Passed'):
                     issue_title = 'PASS!'
                     issue_status = 'PASS'
@@ -505,13 +571,17 @@ for i, student_name in enumerate(student_names):
                     issue_title = 'Kompletering'
                     issue_status = 'Kompletering'
                 if use_gpt:
-                    issue_body = f"GPT Analysis: {gpt_analysis}"
+                    # Check if this is actual GPT analysis or just stack trace for non-participating student
+                    if student_name.strip() in non_participating_students:
+                        issue_body = gpt_analysis  # Already contains "Compilation result: ... Unit test result: ..."
+                    else:
+                        issue_body = f"GPT Analysis: {gpt_analysis}"
                 else:
                     issue_body = f"Compilation result: {compilation_result}\nUnit test result: {unit_test_result}"
         if auto_create_issues and g is not None:
             try:
                 repo_suffix_local = "quicksort" if (language == "java" and task_number == "19") else (f"task-{task_number}" if language == "java" else repo_suffix)
-                repo_name = f"inda-24/{student_name.strip()}-{repo_suffix_local}"
+                repo_name = f"inda-25/{student_name.strip()}-{repo_suffix_local}"
                 repo_obj = g.get_repo(repo_name)
                 repo_obj.create_issue(title=issue_title, body=issue_body)
             except Exception as e:
@@ -528,7 +598,7 @@ for i, student_name in enumerate(student_names):
         if auto_create_issues and g is not None:
             try:
                 repo_suffix_local = "quicksort" if (language == "java" and task_number == "19") else (f"task-{task_number}" if language == "java" else repo_suffix)
-                repo_name = f"inda-24/{student_name.strip()}-{repo_suffix_local}"
+                repo_name = f"inda-25/{student_name.strip()}-{repo_suffix_local}"
                 repo_obj = g.get_repo(repo_name)
                 repo_obj.create_issue(title=issue_title, body=issue_body)
             except Exception as e:

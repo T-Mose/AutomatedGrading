@@ -37,6 +37,8 @@ The script has been enhanced to support additional features:
 3. **Main Class Detection**: The script automatically detects the main Java class in the student's code.
 4. **Timeout for Compilation**: A timeout mechanism is in place to prevent processes from running indefinitely.
 5. **GPT Analysis**: The script can generate feedback using GPT based on the student's code and the test results, offering constructive feedback.
+6. **Non-Participating Students**: Students can opt out of having their code sent to GPT analysis while still receiving grading feedback.
+7. **UV Dependency Management**: The project now uses `uv` for fast and reliable Python dependency management.
 
 ## Interpreting the Output
 
@@ -191,15 +193,34 @@ python AutoGrader.py <task_number> [Y/N] [Y/N] [Y/N]
 
 ## Prerequisites
 Make sure you have the following installed:
-- Python 3.x
-- GitPython: `pip install gitpython`
-- Pandas: `pip install pandas`
-- PyGithub: `pip install PyGithub`
-- OpenAI: `pip install openai`
+- Python 3.8+
+- UV for dependency management: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - JUnit (Download: [JUnit 4.13.2](https://search.maven.org/artifact/junit/junit/4.13.2/jar))
 - Hamcrest (Download: [Hamcrest 1.3](https://search.maven.org/artifact/org.hamcrest/hamcrest-core/1.3/jar))
 
 ### **Important**: Place the JAR files (`junit-4.13.2.jar` and `hamcrest-core-1.3.jar`) in the same directory as the Python scripts for the compilation and unit testing to work.
+
+### Dependencies Installation
+Install Python dependencies using UV:
+```bash
+uv sync
+```
+
+## Non-Participating Students Feature
+
+### Overview
+Some students may choose not to have their code sent to GPT analysis for privacy reasons. The script supports this through a `non_participating.xlsx` file.
+
+### Setup
+1. Create a `non_participating.xlsx` file in the same directory as the script
+2. List student IDs in column A (same format as `students.xlsx`)
+3. Students listed in this file will:
+   - Still receive normal compilation and unit test feedback
+   - Get stack traces instead of GPT analysis in their issues
+   - Have their code **not sent** to OpenAI's API
+
+### Privacy Protection
+The script automatically detects non-participating students and ensures their code is never transmitted to external APIs while maintaining full grading functionality.
 
 ## How to Use
 

@@ -1,4 +1,18 @@
 # Ignore environment files containing sensitive information
-*.env
+.env
+
+# Ignore student data and JAR files  
 *.xlsx
+*.jar
+
+# Ignore cloned student repositories
 student_repos/
+
+# Ignore Python cache and virtual environments
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+
+# Keep uv.lock tracked for reproducible builds
+# Keep .env.example tracked as template
