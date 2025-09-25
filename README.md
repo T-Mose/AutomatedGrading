@@ -7,7 +7,13 @@ Add an intermediary step between posting the result as an issue where the TA the
 ﻿# Automatic Grader
 
 ## Overview
-This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student Java repositories. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file. Optionally, it can automatically create GitHub issues based on the results of the compilation and testing. Additionally, the script can provide detailed feedback using GPT analysis.
+This repository contains Python scripts for automating the process of cloning, compiling, and running unit tests on student repositories for both Java and Go programming languages. It works with repositories hosted on `gits-15.sys.kth.se` and reads student IDs from an Excel file. For Java tasks (Task-1 to Task-19), it follows the traditional naming scheme, while for Go tasks (Task-20 and above), it uses the palinda naming convention. Optionally, it can automatically create GitHub issues based on the results of the compilation and testing. Additionally, the script can provide detailed feedback using GPT analysis.
+
+### Language and Task Mapping
+- **Java Tasks (1-18)**: Repository suffix follows `task-{number}` format
+- **Java Task 19**: Special case using `quicksort` suffix 
+- **Go Tasks (20+)**: Repository suffix follows `palinda-{n}` format where n = task_number - 19
+  - Example: Task-20 → palinda-1, Task-21 → palinda-2, etc.
 
 ![Overview Graph](images/overview_graph.png)
 
@@ -37,8 +43,11 @@ The script has been enhanced to support additional features:
 3. **Main Class Detection**: The script automatically detects the main Java class in the student's code.
 4. **Timeout for Compilation**: A timeout mechanism is in place to prevent processes from running indefinitely.
 5. **GPT Analysis**: The script can generate feedback using GPT based on the student's code and the test results, offering constructive feedback.
-6. **Non-Participating Students**: Students can opt out of having their code sent to GPT analysis while still receiving grading feedback.
-7. **UV Dependency Management**: The project now uses `uv` for fast and reliable Python dependency management.
+6. **Go Language Support**: Added support for Go programming assignments (Task-20 and above) with automatic test execution using `go test`.
+7. **Non-Participating Students**: Students can opt out of having their code sent to GPT analysis while still receiving grading feedback.
+8. **Repository Activity Check**: Automatically fails submissions with no commits in the last 100 days to ensure current work.
+9. **UV Dependency Management**: The project now uses `uv` for fast and reliable Python dependency management.
+10. **Dual Environment File Support**: Supports both `.env` and `API_TOKENS.env` for backwards compatibility.
 
 ## Interpreting the Output
 
@@ -187,9 +196,12 @@ python AutoGrader.py <task_number> [Y/N] [Y/N] [Y/N]
 ```
 
 ## Files
-- `AutoGrader.py`: Script for cloning, compiling, running unit tests, and creating GitHub issues.
+- `AutoGrader.py`: Script for cloning, compiling, running unit tests, and creating GitHub issues for both Java and Go.
 - `students.xlsx`: Template for inputting student IDs (empty for privacy reasons).
-- `UnitTests.java`: Placeholder unit test file to be replaced for each assignment.
+- `non_participating.xlsx`: Optional file for students who opt out of GPT analysis.
+- `UnitTests/`: Directory containing unit test files organized by task number.
+  - For Java: `.java` test files
+  - For Go: `_test.go` test files
 
 ## Prerequisites
 Make sure you have the following installed:
