@@ -272,13 +272,24 @@ def run_go_tests(repo_path, src_path, unit_tests_dir):
 
 
 # Modular GPT analysis function for both Java and Go
-def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analysis_type, language):
+def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analysis_type, language, assignment_instructions=None):
+    # Format assignment instructions if available
+    assignment_context = ""
+    if assignment_instructions and assignment_instructions.strip():
+        assignment_context = f"""
+Uppgiftsbeskrivning från README.md:
+
+{assignment_instructions}
+När du ger feedback ska det vara tydligt vad som är förväntat av studenten, såsom från uppgiftsbeskrivningen och potentiellt misslyckade tester eller felaktig kompilering. 
+Förbättringsmöjligheter utöver vad som krävs av uppgiftsbeskrivningen ska vara tydligt separerade så att studenten inte missförstår vad som är obligatoriskt och vad som är frivilligt.
+"""
+    
     if language == "java":
         if analysis_type == 'pass':
             prompt = f"""
             Du är en Java-expert som hjälper en student att förbättra sin kod.
 
-            Studentens kod är som följer:
+            {assignment_context}Studentens kod är som följer:
 
             {code_contents}
 
@@ -290,7 +301,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
 
             Programmet fungerar och alla enhetstester har klarats.
 
-            Ge konstruktiv feedback om hur studenten kan förbättra sin kod, till exempel förbättring av kodstruktur, prestanda eller läsbarhet.
+            Ge konstruktiv feedback om hur studenten kan förbättra sin kod, till exempel förbättring av kodstruktur, prestanda eller läsbarhet. Använd uppgiftsbeskrivningen för att kontrollera om studenten har implementerat alla krav korrekt.
 
             Ge svaret kort, max 100 ord.
             """
@@ -298,7 +309,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             prompt = f"""
             Du är en Java-expert som hjälper en student att debugga sin kod.
 
-            Studentens kod är som följer:
+            {assignment_context}Studentens kod är som följer:
 
             {code_contents}
 
@@ -308,7 +319,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             Resultatet av enhetstesterna är:
             {unit_test_result}
 
-            Hjälp studenten att identifiera var i koden det kan finnas fel, och ge förslag på förbättringar utan att ge direkta lösningar. Fokusera på att leda studenten till rätt del av koden och uppmuntra dem att analysera det.
+            Hjälp studenten att identifiera var i koden det kan finnas fel, och ge förslag på förbättringar utan att ge direkta lösningar. Fokusera på att leda studenten till rätt del av koden och uppmuntra dem att analysera det. Använd uppgiftsbeskrivningen för att förstå vad som förväntas av koden.
             Anta testerna som perfekta och undvik att nämn dess existens.
             Ge svaret kort, max 100 ord och fokusera på att hjälpa studenten att förstå.
             """
@@ -316,7 +327,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             prompt = f"""
             Du är en Java-expert som hjälper en student att debugga sin kod.
 
-            Studentens kod är som följer:
+            {assignment_context}Studentens kod är som följer:
 
             {code_contents}
 
@@ -326,7 +337,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             Resultatet av enhetstesterna är:
             {unit_test_result}
 
-            Hjälp studenten att förstå varför koden inte fungerar.
+            Hjälp studenten att förstå varför koden inte fungerar. Använd uppgiftsbeskrivningen för att förstå vad som förväntas av koden.
 
             Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan göra för att lära sig hur man löser det.
             """
@@ -335,7 +346,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             prompt = f"""
             Du är en Go-expert som hjälper en student att förbättra sin kod.
 
-            Studentens kod är som följer:
+            {assignment_context}Studentens kod är som följer:
 
             {code_contents}
 
@@ -347,7 +358,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
 
             Programmet fungerar och alla enhetstester har klarats.
 
-            Ge konstruktiv feedback om hur studenten kan förbättra sin kod, till exempel förbättring av kodstruktur, prestanda eller läsbarhet.
+            Ge konstruktiv feedback om hur studenten kan förbättra sin kod, till exempel förbättring av kodstruktur, prestanda eller läsbarhet. Använd uppgiftsbeskrivningen för att kontrollera om studenten har implementerat alla krav korrekt.
 
             Ge svaret kort, max 100 ord.
             """
@@ -355,7 +366,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             prompt = f"""
             Du är en Go-expert som hjälper en student att debugga sin kod.
 
-            Studentens kod är som följer:
+            {assignment_context}Studentens kod är som följer:
 
             {code_contents}
 
@@ -365,7 +376,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             Resultatet av enhetstesterna är:
             {unit_test_result}
 
-            Hjälp studenten att identifiera var i koden det kan finnas fel, och ge förslag på förbättringar utan att ge direkta lösningar. Fokusera på att leda studenten till rätt del av koden och uppmuntra dem att analysera det.
+            Hjälp studenten att identifiera var i koden det kan finnas fel, och ge förslag på förbättringar utan att ge direkta lösningar. Fokusera på att leda studenten till rätt del av koden och uppmuntra dem att analysera det. Använd uppgiftsbeskrivningen för att förstå vad som förväntas av koden.
             Anta testerna som perfekta och undvik att nämn dess existens.
             Ge svaret kort, max 100 ord och fokusera på att hjälpa studenten att förstå.
             """
@@ -373,7 +384,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             prompt = f"""
             Du är en Go-expert som hjälper en student att debugga sin kod.
 
-            Studentens kod är som följer:
+            {assignment_context}Studentens kod är som följer:
 
             {code_contents}
 
@@ -383,7 +394,7 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
             Resultatet av enhetstesterna är:
             {unit_test_result}
 
-            Hjälp studenten att förstå varför koden inte fungerar.
+            Hjälp studenten att förstå varför koden inte fungerar. Använd uppgiftsbeskrivningen för att förstå vad som förväntas av koden.
 
             Ge svaret kort, max 100 ord och fokusera mer på vad studenten kan göra för att lära sig hur man löser det.
             """
@@ -398,6 +409,23 @@ def analyze_with_gpt(code_contents, compilation_result, unit_test_result, analys
     except Exception as e:
         print(f"Error generating analysis with GPT: {e}")
         return "Kunde inte generera analys på grund av ett fel med OpenAI API."
+
+# Function to extract assignment instructions from README.md
+def extract_assignment_instructions(repo_path):
+    """
+    Extract assignment instructions from README.md file in the repository root.
+    Returns the content of README.md or a default message if not found.
+    """
+    readme_path = os.path.join(repo_path, 'README.md')
+    if os.path.exists(readme_path):
+        try:
+            with open(readme_path, 'r', encoding='utf-8') as f:
+                content = f.read().strip()
+                return content if content else "README.md file is empty."
+        except Exception as e:
+            return f"Error reading README.md: {str(e)}"
+    else:
+        return "No README.md file found in repository."
 
 # Function to strip comments from code
 def strip_comments(code, language):
@@ -558,12 +586,15 @@ for i, student_name in enumerate(student_names):
                         # Strip comments from code before GPT analysis
                         stripped_code, comments_found = strip_comments(code_contents, language)
                         
+                        # Extract assignment instructions from README.md
+                        assignment_instructions = extract_assignment_instructions(repo_path)
+                        
                         analysis_type = (
                             'pass' if compilation_result == 'Success' and unit_test_result in ['Unit Tests Passed', 'Unit Tests Passed']
                             else 'test_failure' if compilation_result == 'Success' and 'Failed' in unit_test_result
                             else 'compile_failure'
                         )
-                        gpt_analysis = analyze_with_gpt(stripped_code, compilation_result, unit_test_result, analysis_type, language)
+                        gpt_analysis = analyze_with_gpt(stripped_code, compilation_result, unit_test_result, analysis_type, language, assignment_instructions)
                 if compilation_result == 'Success' and (unit_test_result == 'Unit Tests Passed' or unit_test_result == 'Unit Tests Passed'):
                     issue_title = 'PASS!'
                     issue_status = 'PASS'
