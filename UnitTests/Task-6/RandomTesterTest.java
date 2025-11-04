@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.lang.reflect.Field;
 
 import org.junit.Test;
 
@@ -169,7 +170,20 @@ public class RandomTesterTest {
 
     class FakeDice extends Dice {
         public FakeDice(int value) {
-            this.value = value;
+            // Try to set value field - works with both public/protected field and private field
+            try {
+                Field field = Dice.class.getField("value");
+                field.setInt(this, value);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                // If field is not public/protected, try to access it as private/protected field
+                try {
+                    Field field = Dice.class.getDeclaredField("value");
+                    field.setAccessible(true);
+                    field.setInt(this, value);
+                } catch (NoSuchFieldException | IllegalAccessException ex) {
+                    throw new RuntimeException("Could not set value field on Dice", ex);
+                }
+            }
         }
     }
 }

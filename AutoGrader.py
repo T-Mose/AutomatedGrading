@@ -146,6 +146,20 @@ if os.path.exists(base_folder):
 os.mkdir(base_folder)
 
 
+# Function to detect if a Java file is a JUnit test
+def is_junit_test(java_path):
+    """
+    Detect if a Java file is a JUnit test by checking for JUnit imports or @Test annotations.
+    Returns True if the file is a test file, False otherwise.
+    """
+    try:
+        with open(java_path, "r", encoding="utf-8") as f:
+            content = f.read()
+            return ("@Test" in content) or ("import org.junit." in content)
+    except Exception:
+        return False
+
+
 # Function to run a command with timeout
 def run_with_timeout(command, cwd, timeout):
     process = subprocess.Popen(
@@ -173,10 +187,14 @@ def run_java_class(
     java_files = []
     for root, dirs, files in os.walk(src_path):
         for file in files:
-            if file.endswith(".java") and "Test" not in file:
-                file_full_path = os.path.join(root, file)
-                file_relative_path = os.path.relpath(file_full_path, src_path)
-                java_files.append(file_relative_path)
+            if not file.endswith(".java"):
+                continue
+            file_full_path = os.path.join(root, file)
+            # Skip JUnit test files by checking content, not filename
+            if is_junit_test(file_full_path):
+                continue
+            file_relative_path = os.path.relpath(file_full_path, src_path)
+            java_files.append(file_relative_path)
 
     if not java_files:
         return "No Java files found to compile (excluding test files)", None
@@ -523,8 +541,12 @@ def collect_student_code(src_path, language):
     for root, dirs, files in os.walk(src_path):
         for file in files:
             if language == "java":
-                if file.endswith(".java") and "Test" not in file:
-                    with open(os.path.join(root, file), "r", encoding="utf-8") as f:
+                if file.endswith(".java"):
+                    file_full_path = os.path.join(root, file)
+                    # Skip JUnit test files by checking content, not filename
+                    if is_junit_test(file_full_path):
+                        continue
+                    with open(file_full_path, "r", encoding="utf-8") as f:
                         code_contents += f"// File: {file}\n" + f.read() + "\n\n"
             elif language == "go":
                 if file.endswith(".go") and not file.endswith("_test.go"):
@@ -540,17 +562,20 @@ test_class_names = []
 if os.path.exists(unit_tests_dir):
     if language == "java":
         for file in os.listdir(unit_tests_dir):
-            if file.endswith(".java"):
-                unit_test_file = os.path.join(unit_tests_dir, file)
-                unit_test_files.append(unit_test_file)
-                class_name = os.path.splitext(file)[0]
-                test_class_names.append(class_name)
-    # For Go, we assume all .go files in the UnitTests directory are instructor tests.
+            if not file.endswith(".java"):
+                continue
+            unit_test_file = os.path.join(unit_tests_dir, file)
+            unit_test_files.append(unit_test_file)
+            class_name = os.path.splitext(file)[0]
+            if class_name == "TextFileTest":   # <-- hard skip the abstract base
+                continue
+            test_class_names.append(class_name)
 else:
     if run_tests:
         print(f"No unit tests found for Task {task_number} in {unit_tests_dir}")
         print("Unit tests are enabled, but no unit tests were found. Exiting.")
         sys.exit(1)
+
 
 # Iterate over each student and generate the GitHub URL dynamically
 results = []
